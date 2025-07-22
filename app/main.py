@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date, time as dtime
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 
@@ -68,5 +68,41 @@ def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
     if not db_app:
         raise HTTPException(status_code=404, detail='Appointment not found')
     db.delete(db_app)
+    db.commit()
+    return {'detail': 'Deleted'}
+
+
+@app.post('/tasks', response_model=schemas.Task)
+def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
+    db_task = models.Task(**task.dict())
+    db.add(db_task)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@app.get('/tasks', response_model=list[schemas.Task])
+def list_tasks(db: Session = Depends(get_db)):
+    return db.query(models.Task).all()
+
+
+@app.put('/tasks/{task_id}', response_model=schemas.Task)
+def update_task(task_id: int, task: schemas.TaskUpdate, db: Session = Depends(get_db)):
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not db_task:
+        raise HTTPException(status_code=404, detail='Task not found')
+    for field, value in task.dict().items():
+        setattr(db_task, field, value)
+    db.commit()
+    db.refresh(db_task)
+    return db_task
+
+
+@app.delete('/tasks/{task_id}')
+def delete_task(task_id: int, db: Session = Depends(get_db)):
+    db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not db_task:
+        raise HTTPException(status_code=404, detail='Task not found')
+    db.delete(db_task)
     db.commit()
     return {'detail': 'Deleted'}

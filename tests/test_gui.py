@@ -1,6 +1,7 @@
 import subprocess
 import time
 import os
+import sys
 from datetime import date, time as dtime
 import requests
 from streamlit.testing.v1 import AppTest
@@ -22,7 +23,7 @@ def wait_for_api(url: str, timeout: float = 5.0):
 def start_server():
     if os.path.exists("appointments.db"):
         os.remove("appointments.db")
-    proc = subprocess.Popen(["uvicorn", "app.main:app"])
+    proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app"])
     assert wait_for_api(f"{API_URL}/appointments")
     return proc
 
@@ -51,33 +52,48 @@ def test_full_gui_interaction():
         at = at.button(key="refresh-btn").click().run()
         assert any(e.label == "Meeting" for e in at.expander)
 
+        # create task
+        at = at.tabs[1].text_input(key="task-title").input("Task 1").run()
+        at = at.tabs[1].text_input(key="task-desc").input("Do something").run()
+        at = at.tabs[1].date_input(key="task-due-date").set_value(date(2024, 1, 4)).run()
+        at = at.tabs[1].date_input(key="task-start-date").set_value(date(2024, 1, 4)).run()
+        at = at.tabs[1].time_input(key="task-start-time").set_value(dtime(9, 0)).run()
+        at = at.tabs[1].date_input(key="task-end-date").set_value(date(2024, 1, 4)).run()
+        at = at.tabs[1].time_input(key="task-end-time").set_value(dtime(10, 0)).run()
+        at = at.tabs[1].number_input(key="task-perceived").set_value(2).run()
+        at = at.tabs[1].number_input(key="task-estimated").set_value(3).run()
+        at = at.tabs[1].button[1].click().run()
+        assert "Created" in [s.value for s in at.success]
+        at = at.tabs[1].button(key="refresh-tasks").click().run()
+        assert any(e.label == "Task 1" for e in at.expander)
+
         # calendar views
-        at = at.tabs[1].date_input(key="calendar-date").set_value(date(2024, 1, 1)).run()
-        at = at.tabs[1].selectbox[0].set_value("Day").run()
-        assert "2024-01-01" in at.tabs[1].markdown[0].value
-        assert any("Meeting" in md.value for md in at.tabs[1].markdown)
-        at = at.tabs[1].button[1].click().run()
-        assert "2024-01-02" in at.tabs[1].markdown[0].value
-        at = at.tabs[1].button[0].click().run()
-        assert "2024-01-01" in at.tabs[1].markdown[0].value
+        at = at.tabs[2].date_input(key="calendar-date").set_value(date(2024, 1, 1)).run()
+        at = at.tabs[2].selectbox[0].set_value("Day").run()
+        assert "2024-01-01" in at.tabs[2].markdown[0].value
+        assert any("Meeting" in md.value for md in at.tabs[2].markdown)
+        at = at.tabs[2].button[1].click().run()
+        assert "2024-01-02" in at.tabs[2].markdown[0].value
+        at = at.tabs[2].button[0].click().run()
+        assert "2024-01-01" in at.tabs[2].markdown[0].value
 
-        at = at.tabs[1].selectbox[0].set_value("Week").run()
-        assert "2024-01-01" in at.tabs[1].markdown[0].value
-        at = at.tabs[1].button[1].click().run()
-        assert "2024-01-08" in at.tabs[1].markdown[0].value
-        at = at.tabs[1].button[0].click().run()
+        at = at.tabs[2].selectbox[0].set_value("Week").run()
+        assert "2024-01-01" in at.tabs[2].markdown[0].value
+        at = at.tabs[2].button[1].click().run()
+        assert "2024-01-08" in at.tabs[2].markdown[0].value
+        at = at.tabs[2].button[0].click().run()
 
-        at = at.tabs[1].selectbox[0].set_value("Two Weeks").run()
-        assert "2024-01-01" in at.tabs[1].markdown[0].value
-        at = at.tabs[1].button[1].click().run()
-        assert "2024-01-15" in at.tabs[1].markdown[0].value
-        at = at.tabs[1].button[0].click().run()
+        at = at.tabs[2].selectbox[0].set_value("Two Weeks").run()
+        assert "2024-01-01" in at.tabs[2].markdown[0].value
+        at = at.tabs[2].button[1].click().run()
+        assert "2024-01-15" in at.tabs[2].markdown[0].value
+        at = at.tabs[2].button[0].click().run()
 
-        at = at.tabs[1].selectbox[0].set_value("Month").run()
-        assert "2024-01-01" in at.tabs[1].markdown[0].value
-        at = at.tabs[1].button[1].click().run()
-        assert "2024-02-01" in at.tabs[1].markdown[0].value
-        at = at.tabs[1].button[0].click().run()
+        at = at.tabs[2].selectbox[0].set_value("Month").run()
+        assert "2024-01-01" in at.tabs[2].markdown[0].value
+        at = at.tabs[2].button[1].click().run()
+        assert "2024-02-01" in at.tabs[2].markdown[0].value
+        at = at.tabs[2].button[0].click().run()
 
         # update appointment
         at = at.text_input(key="title_1").set_value("Updated Meeting").run()
@@ -91,10 +107,31 @@ def test_full_gui_interaction():
         at = at.button(key="refresh-btn").click().run()
         assert any(e.label == "Updated Meeting" for e in at.expander)
 
+        # update task
+        at = at.text_input(key="task_title_1").set_value("Updated Task").run()
+        at = at.text_input(key="task_description_1").set_value("More work").run()
+        at = at.date_input(key="sdate_1").set_value(date(2024, 1, 5)).run()
+        at = at.time_input(key="stime_1").set_value(dtime(10, 0)).run()
+        at = at.date_input(key="edate_1").set_value(date(2024, 1, 5)).run()
+        at = at.time_input(key="etime_1").set_value(dtime(11, 0)).run()
+        at = at.number_input(key="pdiff_1").set_value(3).run()
+        at = at.number_input(key="ediff_1").set_value(4).run()
+        at = at.checkbox(key="wo_1").check().run()
+        at = at.tabs[1].button[2].click().run()
+        assert "Updated" in [s.value for s in at.success]
+        at = at.tabs[1].button(key="refresh-tasks").click().run()
+        assert any(e.label == "Updated Task" for e in at.expander)
+
         # delete appointment
         at = at.tabs[0].button[3].click().run()
         assert "Deleted" in [s.value for s in at.success]
         at = at.button(key="refresh-btn").click().run()
-        assert len(at.expander) == 0
+        assert len([e for e in at.expander if "Task" not in e.label]) == 0
+
+        # delete task
+        at = at.tabs[1].button[3].click().run()
+        assert "Deleted" in [s.value for s in at.success]
+        at = at.tabs[1].button(key="refresh-tasks").click().run()
+        assert not any(e.label == "Updated Task" for e in at.expander)
     finally:
         stop_server(proc)
