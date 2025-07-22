@@ -51,6 +51,34 @@ def test_full_gui_interaction():
         at = at.button(key="refresh-btn").click().run()
         assert any(e.label == "Meeting" for e in at.expander)
 
+        # calendar views
+        at = at.tabs[1].date_input(key="calendar-date").set_value(date(2024, 1, 1)).run()
+        at = at.tabs[1].selectbox[0].set_value("Day").run()
+        assert "2024-01-01" in at.tabs[1].markdown[0].value
+        assert any("Meeting" in md.value for md in at.tabs[1].markdown)
+        at = at.tabs[1].button[1].click().run()
+        assert "2024-01-02" in at.tabs[1].markdown[0].value
+        at = at.tabs[1].button[0].click().run()
+        assert "2024-01-01" in at.tabs[1].markdown[0].value
+
+        at = at.tabs[1].selectbox[0].set_value("Week").run()
+        assert "2024-01-01" in at.tabs[1].markdown[0].value
+        at = at.tabs[1].button[1].click().run()
+        assert "2024-01-08" in at.tabs[1].markdown[0].value
+        at = at.tabs[1].button[0].click().run()
+
+        at = at.tabs[1].selectbox[0].set_value("Two Weeks").run()
+        assert "2024-01-01" in at.tabs[1].markdown[0].value
+        at = at.tabs[1].button[1].click().run()
+        assert "2024-01-15" in at.tabs[1].markdown[0].value
+        at = at.tabs[1].button[0].click().run()
+
+        at = at.tabs[1].selectbox[0].set_value("Month").run()
+        assert "2024-01-01" in at.tabs[1].markdown[0].value
+        at = at.tabs[1].button[1].click().run()
+        assert "2024-02-01" in at.tabs[1].markdown[0].value
+        at = at.tabs[1].button[0].click().run()
+
         # update appointment
         at = at.text_input(key="title_1").set_value("Updated Meeting").run()
         at = at.text_input(key="desc_1").set_value("Updated notes").run()
@@ -58,13 +86,13 @@ def test_full_gui_interaction():
         at = at.time_input(key="start_time_1").set_value(dtime(9, 0)).run()
         at = at.date_input(key="end_date_1").set_value(date(2024, 1, 2)).run()
         at = at.time_input(key="end_time_1").set_value(dtime(10, 0)).run()
-        at = at.button[2].click().run()
+        at = at.tabs[0].button[2].click().run()
         assert "Updated" in [s.value for s in at.success]
         at = at.button(key="refresh-btn").click().run()
         assert any(e.label == "Updated Meeting" for e in at.expander)
 
         # delete appointment
-        at = at.button(key="del_1").click().run()
+        at = at.tabs[0].button[3].click().run()
         assert "Deleted" in [s.value for s in at.success]
         at = at.button(key="refresh-btn").click().run()
         assert len(at.expander) == 0
