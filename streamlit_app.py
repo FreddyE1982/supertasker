@@ -150,6 +150,7 @@ with tabs[1]:
         key="calendar-date",
     )
     st.session_state["calendar_date"] = cal_date
+    st.markdown(st.session_state["calendar_date"].isoformat())
 
     def add_months(d: date, months: int) -> date:
         year = d.year + (d.month - 1 + months) // 12
@@ -158,22 +159,21 @@ with tabs[1]:
         return date(year, month, day)
 
     def shift(step: int):
-        if view == "Day":
+        if st.session_state["calendar_view"] == "Day":
             st.session_state["calendar_date"] += timedelta(days=step)
-        elif view == "Week":
+        elif st.session_state["calendar_view"] == "Week":
             st.session_state["calendar_date"] += timedelta(days=7 * step)
-        elif view == "Two Weeks":
+        elif st.session_state["calendar_view"] == "Two Weeks":
             st.session_state["calendar_date"] += timedelta(days=14 * step)
         else:
             st.session_state["calendar_date"] = add_months(
                 st.session_state["calendar_date"], step
             )
+        st.session_state["calendar-date"] = st.session_state["calendar_date"]
 
     col1, col2 = st.columns(2)
-    if col1.button("Previous", key="cal-prev"):
-        shift(-1)
-    if col2.button("Next", key="cal-next"):
-        shift(1)
+    col1.button("Previous", key="cal-prev", on_click=shift, args=(-1,))
+    col2.button("Next", key="cal-next", on_click=shift, args=(1,))
 
     view_map = {
         "Day": "timeGridDay",
@@ -209,6 +209,10 @@ with tabs[1]:
     }
 
     state = st_calendar(events=events, options=options, key="calendar")
+
+    st.markdown("### Events")
+    for ev in events:
+        st.markdown(f"- {ev['title']}")
 
     if state.get("eventChange"):
         ev = state["eventChange"]["event"]

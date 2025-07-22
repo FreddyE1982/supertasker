@@ -5,17 +5,28 @@ import os
 
 import pytest
 
+
+def wait_for_api(url: str, timeout: float = 5.0):
+    start = time.time()
+    while time.time() - start < timeout:
+        try:
+            if requests.get(url).status_code == 200:
+                return True
+        except requests.exceptions.ConnectionError:
+            time.sleep(0.1)
+    return False
+
 API_URL = 'http://localhost:8000'
 
-@pytest.fixture(scope='session', autouse=True)
+@pytest.fixture(autouse=True)
 def start_server():
-    proc = subprocess.Popen(['uvicorn', 'app.main:app'])
-    time.sleep(1)
+    proc = subprocess.Popen(["uvicorn", "app.main:app"])
+    assert wait_for_api(f"{API_URL}/appointments")
     yield
     proc.terminate()
     proc.wait()
-    if os.path.exists('appointments.db'):
-        os.remove('appointments.db')
+    if os.path.exists("appointments.db"):
+        os.remove("appointments.db")
 
 
 def test_create_list_update_delete():
