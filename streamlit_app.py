@@ -1,6 +1,6 @@
 import streamlit as st
 import requests
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, time as dtime, timedelta
 import calendar
 from streamlit_calendar import calendar as st_calendar
 
@@ -12,6 +12,8 @@ if "appointments" not in st.session_state:
     st.session_state["appointments"] = []
 if "categories" not in st.session_state:
     st.session_state["categories"] = []
+if "tasks" not in st.session_state:
+    st.session_state["tasks"] = []
 if "calendar_view" not in st.session_state:
     st.session_state["calendar_view"] = "Day"
 if "calendar_date" not in st.session_state:
@@ -30,11 +32,23 @@ def refresh_categories():
         st.session_state["categories"] = resp.json()
 
 
+def refresh_tasks():
+    resp = requests.get(f"{API_URL}/tasks")
+    if resp.status_code == 200:
+        st.session_state["tasks"] = resp.json()
+
+
 refresh()
 refresh_categories()
+refresh_tasks()
 
 
-tabs = st.tabs(["Manage Appointments", "Calendar", "Manage Categories"])
+tabs = st.tabs([
+    "Manage Appointments",
+    "Manage Tasks",
+    "Calendar",
+    "Manage Categories",
+])
 
 with tabs[0]:
     if st.button("Refresh", key="refresh-btn"):
@@ -137,6 +151,89 @@ with tabs[0]:
                     st.error("Error deleting")
 
 with tabs[1]:
+    if st.button("Refresh Tasks", key="refresh-tasks"):
+        refresh_tasks()
+
+    st.header("Create Task")
+    with st.form("task-create-form"):
+        t_title = st.text_input("Title", key="task-title")
+        t_description = st.text_input("Description", key="task-desc")
+        due_date = st.date_input("Due Date", key="task-due-date")
+        start_date = st.date_input("Start Date", key="task-start-date")
+        start_time = st.time_input("Start Time", key="task-start-time")
+        end_date = st.date_input("End Date", key="task-end-date")
+        end_time = st.time_input("End Time", key="task-end-time")
+        perceived = st.number_input("Perceived Difficulty", value=0, step=1, key="task-perceived")
+        estimated = st.number_input("Estimated Difficulty", value=0, step=1, key="task-estimated")
+        worked_on = st.checkbox("Worked On", value=False, key="task-worked")
+        paused = st.checkbox("Paused", value=False, key="task-paused")
+        submitted = st.form_submit_button("Create")
+        if submitted:
+            data = {
+                "title": t_title,
+                "description": t_description,
+                "due_date": due_date.isoformat(),
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "start_time": start_time.isoformat(),
+                "end_time": end_time.isoformat(),
+                "perceived_difficulty": int(perceived),
+                "estimated_difficulty": int(estimated),
+                "worked_on": worked_on,
+                "paused": paused,
+            }
+            r = requests.post(f"{API_URL}/tasks", json=data)
+            if r.status_code == 200:
+                st.success("Created")
+                refresh_tasks()
+            else:
+                st.error("Error creating task")
+
+    st.header("Tasks")
+    for task in st.session_state["tasks"]:
+        with st.expander(task["title"]):
+            st.write(f"Due: {task['due_date']}")
+            with st.form(f'task-edit-{task["id"]}'):
+                title = st.text_input("Title", value=task["title"], key=f'task_title_{task["id"]}')
+                description = st.text_input("Description", value=task.get("description", ""), key=f'task_description_{task["id"]}')
+                due = st.date_input("Due Date", value=date.fromisoformat(task["due_date"]), key=f'due_{task["id"]}')
+                sdate = st.date_input("Start Date", value=date.fromisoformat(task.get("start_date", task["due_date"])), key=f'sdate_{task["id"]}')
+                stime = st.time_input("Start Time", value=dtime.fromisoformat(task.get("start_time", "00:00:00")), key=f'stime_{task["id"]}')
+                edate = st.date_input("End Date", value=date.fromisoformat(task.get("end_date", task["due_date"])), key=f'edate_{task["id"]}')
+                etime = st.time_input("End Time", value=dtime.fromisoformat(task.get("end_time", "00:00:00")), key=f'etime_{task["id"]}')
+                pdiff = st.number_input("Perceived Difficulty", value=task.get("perceived_difficulty", 0) or 0, key=f'pdiff_{task["id"]}', step=1)
+                ediff = st.number_input("Estimated Difficulty", value=task.get("estimated_difficulty", 0) or 0, key=f'ediff_{task["id"]}', step=1)
+                wo = st.checkbox("Worked On", value=task.get("worked_on", False), key=f'wo_{task["id"]}')
+                pa = st.checkbox("Paused", value=task.get("paused", False), key=f'pa_{task["id"]}')
+                if st.form_submit_button("Update"):
+                    data = {
+                        "title": title,
+                        "description": description,
+                        "due_date": due.isoformat(),
+                        "start_date": sdate.isoformat(),
+                        "end_date": edate.isoformat(),
+                        "start_time": stime.isoformat(),
+                        "end_time": etime.isoformat(),
+                        "perceived_difficulty": int(pdiff),
+                        "estimated_difficulty": int(ediff),
+                        "worked_on": wo,
+                        "paused": pa,
+                    }
+                    resp = requests.put(f"{API_URL}/tasks/{task['id']}", json=data)
+                    if resp.status_code == 200:
+                        st.success("Updated")
+                        refresh_tasks()
+                    else:
+                        st.error("Error updating task")
+            if st.button("Delete", key=f'task_del_{task["id"]}'):
+                resp = requests.delete(f"{API_URL}/tasks/{task['id']}")
+                if resp.status_code == 200:
+                    st.success("Deleted")
+                    refresh_tasks()
+                else:
+                    st.error("Error deleting task")
+
+with tabs[2]:
     view = st.selectbox(
         "View", ["Day", "Week", "Two Weeks", "Month"],
         index=["Day", "Week", "Two Weeks", "Month"].index(st.session_state["calendar_view"]),
@@ -198,6 +295,30 @@ with tabs[1]:
             }
         )
 
+    for task in st.session_state["tasks"]:
+        if task.get("start_date") and task.get("start_time"):
+            sdt = datetime.combine(
+                date.fromisoformat(task["start_date"]),
+                dtime.fromisoformat(task["start_time"]),
+            )
+        else:
+            sdt = datetime.combine(date.fromisoformat(task["due_date"]), dtime(0, 0))
+        if task.get("end_date") and task.get("end_time"):
+            edt = datetime.combine(
+                date.fromisoformat(task["end_date"]),
+                dtime.fromisoformat(task["end_time"]),
+            )
+        else:
+            edt = sdt
+        events.append(
+            {
+                "id": f"t{task['id']}",
+                "title": f"Task: {task['title']}",
+                "start": sdt.isoformat(),
+                "end": edt.isoformat(),
+            }
+        )
+
     options = {
         "initialDate": st.session_state["calendar_date"].isoformat(),
         "initialView": view_map[view],
@@ -226,7 +347,7 @@ with tabs[1]:
                 refresh()
                 break
 
-with tabs[2]:
+with tabs[3]:
     st.header("Create Category")
     with st.form("cat-form"):
         name = st.text_input("Name", key="cat-name")

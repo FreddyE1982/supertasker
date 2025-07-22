@@ -2,6 +2,7 @@ import subprocess
 import time
 import requests
 import os
+import sys
 
 import pytest
 
@@ -20,7 +21,7 @@ API_URL = 'http://localhost:8000'
 
 @pytest.fixture(autouse=True)
 def start_server():
-    proc = subprocess.Popen(["uvicorn", "app.main:app"])
+    proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app"])
     assert wait_for_api(f"{API_URL}/appointments")
     yield
     proc.terminate()
@@ -63,5 +64,41 @@ def test_create_list_update_delete():
     r = requests.delete(f'{API_URL}/appointments/{appt["id"]}')
     assert r.status_code == 200
     r = requests.get(f'{API_URL}/appointments')
+    assert r.status_code == 200
+    assert r.json() == []
+
+
+def test_task_crud():
+    data = {
+        "title": "Task",
+        "description": "Do something",
+        "due_date": "2024-01-05",
+        "start_date": "2024-01-04",
+        "end_date": "2024-01-04",
+        "start_time": "09:00:00",
+        "end_time": "10:00:00",
+        "perceived_difficulty": 2,
+        "estimated_difficulty": 3,
+        "worked_on": False,
+        "paused": False,
+    }
+    r = requests.post(f"{API_URL}/tasks", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    assert task["title"] == data["title"]
+
+    r = requests.get(f"{API_URL}/tasks")
+    assert r.status_code == 200
+    assert len(r.json()) == 1
+
+    update = data.copy()
+    update["title"] = "Updated Task"
+    r = requests.put(f"{API_URL}/tasks/{task['id']}", json=update)
+    assert r.status_code == 200
+    assert r.json()["title"] == "Updated Task"
+
+    r = requests.delete(f"{API_URL}/tasks/{task['id']}")
+    assert r.status_code == 200
+    r = requests.get(f"{API_URL}/tasks")
     assert r.status_code == 200
     assert r.json() == []

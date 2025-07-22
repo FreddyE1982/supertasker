@@ -1,4 +1,13 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    DateTime,
+    Date,
+    Time,
+    Boolean,
+    ForeignKey,
+)
 from sqlalchemy.orm import relationship
 from .database import Base
 
@@ -20,3 +29,20 @@ class Appointment(Base):
     category = relationship("Category")
     start_time = Column(DateTime, nullable=False)
     end_time = Column(DateTime, nullable=False)
+
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=True)
+    due_date = Column(Date, nullable=False)
+    start_date = Column(Date, nullable=True)
+    end_date = Column(Date, nullable=True)
+    start_time = Column(Time, nullable=True)
+    end_time = Column(Time, nullable=True)
+    perceived_difficulty = Column(Integer, nullable=True)
+    estimated_difficulty = Column(Integer, nullable=True)
+    worked_on = Column(Boolean, default=False)
+    paused = Column(Boolean, default=False)

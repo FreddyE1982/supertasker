@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, date, time
 from pydantic import BaseModel, ConfigDict
 
 
@@ -30,6 +30,34 @@ class AppointmentUpdate(AppointmentBase):
     pass
 
 class Appointment(AppointmentBase):
+    id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TaskBase(BaseModel):
+    title: str
+    description: str | None = None
+    due_date: date
+    start_date: date | None = None
+    end_date: date | None = None
+    start_time: time | None = None
+    end_time: time | None = None
+    perceived_difficulty: int | None = None
+    estimated_difficulty: int | None = None
+    worked_on: bool = False
+    paused: bool = False
+
+
+class TaskCreate(TaskBase):
+    pass
+
+
+class TaskUpdate(TaskBase):
+    pass
+
+
+class Task(TaskBase):
     id: int
 
     model_config = ConfigDict(from_attributes=True)
