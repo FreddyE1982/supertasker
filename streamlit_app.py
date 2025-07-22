@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from datetime import datetime, date, timedelta
 import calendar
+from streamlit_calendar import calendar as st_calendar
 
 API_URL = "http://localhost:8000"
 
@@ -9,6 +10,8 @@ st.title("Calendar App")
 
 if "appointments" not in st.session_state:
     st.session_state["appointments"] = []
+if "categories" not in st.session_state:
+    st.session_state["categories"] = []
 if "calendar_view" not in st.session_state:
     st.session_state["calendar_view"] = "Day"
 if "calendar_date" not in st.session_state:
@@ -21,16 +24,29 @@ def refresh():
         st.session_state["appointments"] = resp.json()
 
 
-tabs = st.tabs(["Manage Appointments", "Calendar"])
+def refresh_categories():
+    resp = requests.get(f"{API_URL}/categories")
+    if resp.status_code == 200:
+        st.session_state["categories"] = resp.json()
+
+
+refresh()
+refresh_categories()
+
+
+tabs = st.tabs(["Manage Appointments", "Calendar", "Manage Categories"])
 
 with tabs[0]:
     if st.button("Refresh", key="refresh-btn"):
-        refresh()
+        refresh(); refresh_categories()
 
     st.header("Create Appointment")
     with st.form("create-form"):
         title = st.text_input("Title", key="create-title")
         description = st.text_input("Description", key="create-description")
+        cat_opts = {c["name"]: c["id"] for c in st.session_state["categories"]}
+        cat_name = st.selectbox("Category", ["None"] + list(cat_opts.keys()), key="create-cat")
+        category_id = cat_opts.get(cat_name)
         start_date = st.date_input("Start Date", key="create-start-date")
         start_time = st.time_input("Start Time", key="create-start-time")
         end_date = st.date_input("End Date", key="create-end-date")
@@ -44,11 +60,12 @@ with tabs[0]:
                 "description": description,
                 "start_time": start.isoformat(),
                 "end_time": end.isoformat(),
+                "category_id": category_id,
             }
             resp = requests.post(f"{API_URL}/appointments", json=data)
             if resp.status_code == 200:
                 st.success("Created")
-                refresh()
+                refresh(); refresh_categories()
             else:
                 st.error("Error creating appointment")
 
@@ -67,6 +84,12 @@ with tabs[0]:
                     value=appt.get("description", ""),
                     key=f'desc_{appt["id"]}',
                 )
+                cat_opts = {c["name"]: c["id"] for c in st.session_state["categories"]}
+                current_name = next((c["name"] for c in st.session_state["categories"] if c["id"] == appt.get("category_id")), "None")
+                options = ["None"] + list(cat_opts.keys())
+                idx = options.index(current_name) if current_name in options else 0
+                cat_name = st.selectbox("Category", options, index=idx, key=f'cat_{appt["id"]}')
+                category_id = cat_opts.get(cat_name)
                 start_date = st.date_input(
                     "Start Date",
                     value=datetime.fromisoformat(appt["start_time"]).date(),
@@ -95,20 +118,21 @@ with tabs[0]:
                         "description": description,
                         "start_time": start.isoformat(),
                         "end_time": end.isoformat(),
+                        "category_id": category_id,
                     }
                     resp = requests.put(
                         f'{API_URL}/appointments/{appt["id"]}', json=data
                     )
                     if resp.status_code == 200:
                         st.success("Updated")
-                        refresh()
+                        refresh(); refresh_categories()
                     else:
                         st.error("Error updating")
             if st.button("Delete", key=f'del_{appt["id"]}'):
                 resp = requests.delete(f'{API_URL}/appointments/{appt["id"]}')
                 if resp.status_code == 200:
                     st.success("Deleted")
-                    refresh()
+                    refresh(); refresh_categories()
                 else:
                     st.error("Error deleting")
 
@@ -151,24 +175,67 @@ with tabs[1]:
     if col2.button("Next", key="cal-next"):
         shift(1)
 
-    def get_range(d: date, mode: str):
-        if mode == "Day":
-            start = end = d
-        elif mode == "Week":
-            start = d
-            end = d + timedelta(days=6)
-        elif mode == "Two Weeks":
-            start = d
-            end = d + timedelta(days=13)
-        else:
-            start = d.replace(day=1)
-            last = calendar.monthrange(d.year, d.month)[1]
-            end = date(d.year, d.month, last)
-        return start, end
+    view_map = {
+        "Day": "timeGridDay",
+        "Week": "timeGridWeek",
+        "Two Weeks": "twoweek",
+        "Month": "dayGridMonth",
+    }
 
-    start, end = get_range(st.session_state["calendar_date"], view)
-    st.write(f"Showing {start} to {end}")
+    events = []
+    cat_lookup = {c["id"]: c for c in st.session_state["categories"]}
     for appt in st.session_state["appointments"]:
-        st_start = datetime.fromisoformat(appt["start_time"]).date()
-        if start <= st_start <= end:
-            st.write(f"{appt['title']}: {appt['start_time']} - {appt['end_time']}")
+        start_dt = datetime.fromisoformat(appt["start_time"])
+        end_dt = datetime.fromisoformat(appt["end_time"])
+        color = cat_lookup.get(appt.get("category_id"), {}).get("color")
+        events.append(
+            {
+                "id": appt["id"],
+                "title": f"{appt['title']} - {start_dt.strftime('%H:%M')} - {end_dt.strftime('%H:%M')}",
+                "start": appt["start_time"],
+                "end": appt["end_time"],
+                **({"color": color} if color else {}),
+            }
+        )
+
+    options = {
+        "initialDate": st.session_state["calendar_date"].isoformat(),
+        "initialView": view_map[view],
+        "editable": True,
+        "views": {
+            "twoweek": {"type": "timeGrid", "duration": {"weeks": 2}, "buttonText": "2 weeks"}
+        },
+        "height": 650,
+    }
+
+    state = st_calendar(events=events, options=options, key="calendar")
+
+    if state.get("eventChange"):
+        ev = state["eventChange"]["event"]
+        appt_id = int(ev["id"])
+        for appt in st.session_state["appointments"]:
+            if appt["id"] == appt_id:
+                data = appt.copy()
+                data["start_time"] = ev["start"]
+                data["end_time"] = ev["end"]
+                requests.put(f"{API_URL}/appointments/{appt_id}", json=data)
+                refresh()
+                break
+
+with tabs[2]:
+    st.header("Create Category")
+    with st.form("cat-form"):
+        name = st.text_input("Name", key="cat-name")
+        color = st.color_picker("Color", key="cat-color")
+        if st.form_submit_button("Create"):
+            data = {"name": name, "color": color}
+            r = requests.post(f"{API_URL}/categories", json=data)
+            if r.status_code == 200:
+                st.success("Created")
+                refresh_categories()
+            else:
+                st.error("Error creating category")
+
+    st.header("Categories")
+    for cat in st.session_state["categories"]:
+        st.markdown(f"<div style='display:flex;align-items:center;'><div style='width:20px;height:20px;background:{cat['color']};margin-right:5px;'></div>{cat['name']}</div>", unsafe_allow_html=True)
