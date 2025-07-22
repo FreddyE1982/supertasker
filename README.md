@@ -40,3 +40,9 @@ To run only the GUI tests:
 ```bash
 pytest tests/test_gui.py
 ```
+
+## Automatic Dependency Installation
+
+Importing the `autoinstaller` module installs any missing Python packages
+discovered in the project. Set `AUTOINSTALL_PATH` to scan a different directory
+before importing the module.
