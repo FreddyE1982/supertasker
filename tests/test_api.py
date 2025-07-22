@@ -19,16 +19,23 @@ def start_server():
 
 
 def test_create_list_update_delete():
+    cat = {'name': 'Work', 'color': '#ff0000'}
+    r = requests.post(f'{API_URL}/categories', json=cat)
+    assert r.status_code == 200
+    category = r.json()
+
     data = {
         'title': 'Meeting',
         'description': 'Discuss project',
         'start_time': '2024-01-01T10:00:00',
-        'end_time': '2024-01-01T11:00:00'
+        'end_time': '2024-01-01T11:00:00',
+        'category_id': category['id']
     }
     r = requests.post(f'{API_URL}/appointments', json=data)
     assert r.status_code == 200
     appt = r.json()
     assert appt['title'] == data['title']
+    assert appt['category_id'] == category['id']
 
     r = requests.get(f'{API_URL}/appointments')
     assert r.status_code == 200
@@ -36,9 +43,11 @@ def test_create_list_update_delete():
 
     update = data.copy()
     update['title'] = 'Updated Meeting'
+    update['category_id'] = category['id']
     r = requests.put(f'{API_URL}/appointments/{appt["id"]}', json=update)
     assert r.status_code == 200
     assert r.json()['title'] == 'Updated Meeting'
+    assert r.json()['category_id'] == category['id']
 
     r = requests.delete(f'{API_URL}/appointments/{appt["id"]}')
     assert r.status_code == 200
