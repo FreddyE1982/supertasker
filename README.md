@@ -29,6 +29,14 @@ streamlit run streamlit_app.py
 
 ## Running Tests
 
+To run all tests:
+
 ```bash
 pytest
+```
+
+To run only the GUI tests:
+
+```bash
+pytest tests/test_gui.py
 ```
