@@ -116,12 +116,25 @@ class TaskPlanner:
     def _next_work_time(self, dt: datetime) -> datetime:
         start_hour = int(os.getenv("WORK_START_HOUR", "9"))
         end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+        work_days_env = os.getenv("WORK_DAYS")
+        if work_days_env:
+            work_days = {int(d) for d in work_days_env.split(",")}
+        else:
+            work_days = set(range(7))
+
+        dt = dt.replace(second=0, microsecond=0)
+        while dt.weekday() not in work_days:
+            dt = dt.replace(hour=start_hour, minute=0) + timedelta(days=1)
+
         start = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
         end = dt.replace(hour=end_hour, minute=0, second=0, microsecond=0)
         if dt < start:
-            return start
-        if dt >= end:
-            return start + timedelta(days=1)
+            dt = start
+        elif dt >= end:
+            dt = start + timedelta(days=1)
+            while dt.weekday() not in work_days:
+                dt = dt + timedelta(days=1)
+                dt = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
         return dt
 
     def _conflicts(
@@ -154,9 +167,10 @@ class TaskPlanner:
         difficulty: int,
         priority: int,
     ) -> list[tuple[datetime, datetime]]:
-        session_len = 25
-        short_break = 5
-        long_break = 15
+        session_len = int(os.getenv("SESSION_LENGTH_MINUTES", "25"))
+        short_break = int(os.getenv("SHORT_BREAK_MINUTES", "5"))
+        long_break = int(os.getenv("LONG_BREAK_MINUTES", "15"))
+        long_interval = int(os.getenv("SESSIONS_BEFORE_LONG_BREAK", "4"))
         max_per_day = int(os.getenv("MAX_SESSIONS_PER_DAY", "4"))
         needed = (duration + session_len - 1) // session_len
 
@@ -165,8 +179,16 @@ class TaskPlanner:
         preferred = self._preferred_start_hour(difficulty, priority, urgency)
         days_left = max(1, (due - now.date()).days + 1)
         target_per_day = min(max_per_day, max(1, math.ceil(needed / days_left)))
+        work_days_env = os.getenv("WORK_DAYS")
+        if work_days_env:
+            work_days = {int(d) for d in work_days_env.split(",")}
+        else:
+            work_days = set(range(7))
         days_needed = math.ceil(needed / target_per_day)
-        start_day = max(now.date(), due - timedelta(days=days_needed - 1))
+        last_work_day = due
+        while last_work_day.weekday() not in work_days:
+            last_work_day -= timedelta(days=1)
+        start_day = max(now.date(), last_work_day - timedelta(days=days_needed - 1))
         now = self._next_work_time(datetime.combine(start_day, time(hour=preferred)))
         if now.hour < preferred:
             now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
@@ -194,7 +216,7 @@ class TaskPlanner:
                     per_day = 0
                 continue
             if per_day >= target_per_day:
-                remaining_days = max(1, (due - start.date()).days + 1)
+                remaining_days = max(1, (last_work_day - start.date()).days + 1)
                 if remaining_days == 1:
                     target_per_day = max_per_day
                 else:
@@ -205,7 +227,7 @@ class TaskPlanner:
                     if now.hour < preferred:
                         now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
                     per_day = 0
-                    remaining_days = max(1, (due - now.date()).days + 1)
+                    remaining_days = max(1, (last_work_day - now.date()).days + 1)
                     target_per_day = min(
                         max_per_day,
                         max(1, math.ceil((needed - len(sessions)) / remaining_days)),
@@ -213,13 +235,13 @@ class TaskPlanner:
                     continue
             sessions.append((start, end))
             events.append((start, end))
-            break_len = long_break if since_break == 3 else short_break
+            break_len = long_break if since_break == long_interval - 1 else short_break
             break_end = end + timedelta(minutes=break_len)
             events.append((end, break_end))
             now = self._next_work_time(break_end)
             if now.hour < preferred:
                 now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
-            since_break = (since_break + 1) % 4
+            since_break = (since_break + 1) % long_interval
             per_day += 1
         return sessions
 

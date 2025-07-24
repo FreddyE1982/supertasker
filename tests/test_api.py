@@ -23,10 +23,13 @@ TODAY = date.today()
 TOMORROW = TODAY + timedelta(days=1)
 
 @pytest.fixture(autouse=True)
-def start_server(monkeypatch):
+def start_server(monkeypatch, request):
     if os.path.exists("appointments.db"):
         os.remove("appointments.db")
     env = os.environ.copy()
+    marker = request.node.get_closest_marker("env")
+    if marker:
+        env.update(marker.kwargs)
     proc = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "app.main:app"], env=env
     )
@@ -453,4 +456,44 @@ def test_planner_spreads_sessions(monkeypatch):
     days = {datetime.fromisoformat(s["start_time"]).date() for s in sessions}
     assert len(days) >= 2
     assert max(days) <= due
+
+
+@pytest.mark.env(SESSION_LENGTH_MINUTES="50")
+def test_custom_session_length(monkeypatch):
+
+    data = {
+        "title": "Long",
+        "description": "",
+        "estimated_difficulty": 2,
+        "estimated_duration_minutes": 50,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(sessions) == 1
+    delta = datetime.fromisoformat(sessions[0]["end_time"]) - datetime.fromisoformat(sessions[0]["start_time"])
+    assert delta == timedelta(minutes=50)
+
+
+@pytest.mark.env(WORK_DAYS="0,1,2,3,4")
+def test_planner_respects_work_days(monkeypatch):
+    weekend = TODAY + timedelta((5 - TODAY.weekday()) % 7)
+
+    data = {
+        "title": "Weekend",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": weekend.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert all(datetime.fromisoformat(s["start_time"]).weekday() < 5 for s in sessions)
+    assert datetime.fromisoformat(sessions[-1]["end_time"]).date() <= weekend
 
