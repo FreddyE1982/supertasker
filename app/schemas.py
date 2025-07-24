@@ -45,6 +45,7 @@ class TaskBase(BaseModel):
     end_time: time | None = None
     perceived_difficulty: int | None = None
     estimated_difficulty: int | None = None
+    estimated_duration_minutes: int | None = None
     priority: int = 3
     worked_on: bool = False
     paused: bool = False
@@ -52,6 +53,14 @@ class TaskBase(BaseModel):
 
 class TaskCreate(TaskBase):
     pass
+
+
+class PlanTaskCreate(BaseModel):
+    title: str
+    description: str | None = None
+    estimated_difficulty: int
+    estimated_duration_minutes: int
+    due_date: date
 
 
 class TaskUpdate(TaskBase):

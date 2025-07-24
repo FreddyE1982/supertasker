@@ -44,6 +44,7 @@ class Task(Base):
     end_time = Column(Time, nullable=True)
     perceived_difficulty = Column(Integer, nullable=True)
     estimated_difficulty = Column(Integer, nullable=True)
+    estimated_duration_minutes = Column(Integer, nullable=True)
     priority = Column(Integer, nullable=False, default=3)
     worked_on = Column(Boolean, default=False)
     paused = Column(Boolean, default=False)

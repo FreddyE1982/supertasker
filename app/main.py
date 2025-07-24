@@ -1,7 +1,6 @@
-from datetime import datetime, date, time as dtime
+from datetime import datetime, date, time as dtime, timedelta
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
 
 from . import models, schemas
 from .database import SessionLocal, engine, Base
@@ -80,6 +79,109 @@ class FocusSessionService:
         self.db.commit()
 
 
+class TaskPlanner:
+    """Automatically schedule tasks into available calendar slots."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def _collect_events(self) -> list[tuple[datetime, datetime]]:
+        events: list[tuple[datetime, datetime]] = []
+        for appt in self.db.query(models.Appointment).all():
+            events.append((appt.start_time, appt.end_time))
+        for fs in self.db.query(models.FocusSession).all():
+            events.append((fs.start_time, fs.end_time))
+        for task in (
+            self.db.query(models.Task)
+            .filter(models.Task.start_date.isnot(None))
+            .filter(models.Task.start_time.isnot(None))
+            .filter(models.Task.end_date.isnot(None))
+            .filter(models.Task.end_time.isnot(None))
+            .all()
+        ):
+            sdt = datetime.combine(task.start_date, task.start_time)
+            edt = datetime.combine(task.end_date, task.end_time)
+            events.append((sdt, edt))
+        events.sort(key=lambda e: e[0])
+        return events
+
+    def _next_work_time(self, dt: datetime) -> datetime:
+        start = dt.replace(hour=9, minute=0, second=0, microsecond=0)
+        end = dt.replace(hour=17, minute=0, second=0, microsecond=0)
+        if dt < start:
+            return start
+        if dt >= end:
+            return start + timedelta(days=1)
+        return dt
+
+    def _conflicts(
+        self, start: datetime, end: datetime, events: list[tuple[datetime, datetime]]
+    ) -> bool:
+        for s, e in events:
+            if start < e and end > s:
+                return True
+        return False
+
+    def _schedule_sessions(
+        self, duration: int, due: date, events: list[tuple[datetime, datetime]]
+    ) -> list[tuple[datetime, datetime]]:
+        session_len = 25
+        short_break = 5
+        long_break = 15
+        needed = (duration + session_len - 1) // session_len
+
+        now = self._next_work_time(datetime.utcnow())
+        sessions: list[tuple[datetime, datetime]] = []
+        since_break = 0
+        while len(sessions) < needed:
+            start = now
+            end = start + timedelta(minutes=session_len)
+            if end.date() > due:
+                raise HTTPException(status_code=400, detail="Cannot schedule before due date")
+            if end.hour > 17 or (end.hour == 17 and end.minute > 0):
+                now = self._next_work_time(start + timedelta(days=1))
+                continue
+            if self._conflicts(start, end, events):
+                overlap_end = max(e for s, e in events if start < e and end > s)
+                now = self._next_work_time(overlap_end)
+                continue
+            sessions.append((start, end))
+            events.append((start, end))
+            break_len = long_break if since_break == 3 else short_break
+            break_end = end + timedelta(minutes=break_len)
+            events.append((end, break_end))
+            now = self._next_work_time(break_end)
+            since_break = (since_break + 1) % 4
+        return sessions
+
+    def plan(self, data: schemas.PlanTaskCreate) -> models.Task:
+        task = models.Task(
+            title=data.title,
+            description=data.description,
+            due_date=data.due_date,
+            estimated_difficulty=data.estimated_difficulty,
+            estimated_duration_minutes=data.estimated_duration_minutes,
+        )
+        self.db.add(task)
+        self.db.commit()
+        self.db.refresh(task)
+
+        events = self._collect_events()
+        sessions = self._schedule_sessions(data.estimated_duration_minutes, data.due_date, events)
+
+        for s, e in sessions:
+            fs = models.FocusSession(task_id=task.id, start_time=s, end_time=e, completed=False)
+            self.db.add(fs)
+        if sessions:
+            task.start_date = sessions[0][0].date()
+            task.start_time = sessions[0][0].time()
+            task.end_date = sessions[-1][1].date()
+            task.end_time = sessions[-1][1].time()
+        self.db.commit()
+        self.db.refresh(task)
+        return task
+        
+
 @app.post("/categories", response_model=schemas.Category)
 def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
     db_cat = models.Category(**category.dict())
@@ -141,6 +243,12 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_task)
     return db_task
+
+
+@app.post('/tasks/plan', response_model=schemas.Task)
+def plan_task(data: schemas.PlanTaskCreate, db: Session = Depends(get_db)):
+    planner = TaskPlanner(db)
+    return planner.plan(data)
 
 
 @app.get('/tasks', response_model=list[schemas.Task])

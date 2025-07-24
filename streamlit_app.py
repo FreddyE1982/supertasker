@@ -160,6 +160,28 @@ with tabs[1]:
     if st.button("Refresh Tasks", key="refresh-tasks"):
         refresh_tasks()
 
+    st.subheader("Plan Task Automatically")
+    with st.form("plan-form"):
+        p_title = st.text_input("Title", key="plan-title")
+        p_desc = st.text_input("Description", key="plan-desc")
+        p_diff = st.number_input("Estimated Difficulty", min_value=1, max_value=5, step=1, key="plan-diff")
+        p_duration = st.number_input("Estimated Duration Minutes", min_value=1, step=1, key="plan-dur")
+        p_due = st.date_input("Due Date", key="plan-due")
+        if st.form_submit_button("Plan"):
+            data = {
+                "title": p_title,
+                "description": p_desc,
+                "estimated_difficulty": int(p_diff),
+                "estimated_duration_minutes": int(p_duration),
+                "due_date": p_due.isoformat(),
+            }
+            r = requests.post(f"{API_URL}/tasks/plan", json=data)
+            if r.status_code == 200:
+                st.success("Planned")
+                refresh_tasks()
+            else:
+                st.error("Error planning task")
+
     st.header("Create Task")
     with st.form("task-create-form"):
         t_title = st.text_input("Title", key="task-title")

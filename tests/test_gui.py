@@ -2,11 +2,13 @@ import subprocess
 import time
 import os
 import sys
-from datetime import date, time as dtime
+from datetime import date, time as dtime, timedelta
 import requests
 from streamlit.testing.v1 import AppTest
 
 API_URL = "http://localhost:8000"
+TODAY = date.today()
+TOMORROW = TODAY + timedelta(days=1)
 
 
 def wait_for_api(url: str, timeout: float = 5.0):
@@ -43,34 +45,45 @@ def test_full_gui_interaction():
         # create appointment
         at = at.text_input(key="create-title").input("Meeting").run()
         at = at.text_input(key="create-description").input("Discuss project").run()
-        at = at.date_input(key="create-start-date").set_value(date(2024, 1, 1)).run()
+        at = at.date_input(key="create-start-date").set_value(TODAY).run()
         at = at.time_input(key="create-start-time").set_value(dtime(10, 0)).run()
-        at = at.date_input(key="create-end-date").set_value(date(2024, 1, 1)).run()
+        at = at.date_input(key="create-end-date").set_value(TODAY).run()
         at = at.time_input(key="create-end-time").set_value(dtime(11, 0)).run()
         at = at.button[1].click().run()
         assert "Created" in [s.value for s in at.success]
         at = at.button(key="refresh-btn").click().run()
         assert any(e.label == "Meeting" for e in at.expander)
 
+        # plan task
+        at = at.tabs[1].text_input(key="plan-title").input("Planned").run()
+        at = at.tabs[1].text_input(key="plan-desc").input("Auto").run()
+        at = at.tabs[1].number_input(key="plan-diff").set_value(3).run()
+        at = at.tabs[1].number_input(key="plan-dur").set_value(50).run()
+        at = at.tabs[1].date_input(key="plan-due").set_value(TOMORROW).run()
+        at = at.tabs[1].button(key="FormSubmitter:plan-form-Plan").click().run()
+        assert "Planned" in [s.value for s in at.success]
+        at = at.tabs[1].button(key="refresh-tasks").click().run()
+        assert any("Planned" in e.label for e in at.expander)
+
         # create task
         at = at.tabs[1].text_input(key="task-title").input("Task 1").run()
         at = at.tabs[1].text_input(key="task-desc").input("Do something").run()
-        at = at.tabs[1].date_input(key="task-due-date").set_value(date(2024, 1, 4)).run()
-        at = at.tabs[1].date_input(key="task-start-date").set_value(date(2024, 1, 4)).run()
+        at = at.tabs[1].date_input(key="task-due-date").set_value(TOMORROW).run()
+        at = at.tabs[1].date_input(key="task-start-date").set_value(TOMORROW).run()
         at = at.tabs[1].time_input(key="task-start-time").set_value(dtime(9, 0)).run()
-        at = at.tabs[1].date_input(key="task-end-date").set_value(date(2024, 1, 4)).run()
+        at = at.tabs[1].date_input(key="task-end-date").set_value(TOMORROW).run()
         at = at.tabs[1].time_input(key="task-end-time").set_value(dtime(10, 0)).run()
         at = at.tabs[1].number_input(key="task-perceived").set_value(2).run()
         at = at.tabs[1].number_input(key="task-estimated").set_value(3).run()
         at = at.tabs[1].number_input(key="task-priority").set_value(3).run()
-        at = at.tabs[1].button[1].click().run()
+        at = at.tabs[1].button(key="FormSubmitter:task-create-form-Create").click().run()
         assert "Created" in [s.value for s in at.success]
         at = at.tabs[1].button(key="refresh-tasks").click().run()
         assert any(e.label == "Task 1" for e in at.expander)
 
         # create subtask
         at = at.text_input(key="new_sub_1").input("Step 1").run()
-        at = at.button[7].click().run()
+        at = at.button(key="FormSubmitter:subtask-create-1-Add Subtask").click().run()
         assert "Created" in [s.value for s in at.success]
         at = at.tabs[1].button(key="refresh-tasks").click().run()
 
@@ -81,7 +94,7 @@ def test_full_gui_interaction():
         at = at.tabs[1].button(key="refresh-tasks").click().run()
 
         # update focus session
-        at = at.date_input(key="fs_end_date_1_1").set_value(date(2024, 1, 4)).run()
+        at = at.date_input(key="fs_end_date_1_1").set_value(TOMORROW).run()
         at = at.time_input(key="fs_end_time_1_1").set_value(dtime(10, 30)).run()
         at = at.checkbox(key="fs_comp_1_1").check().run()
         at = at.button(key="FormSubmitter:fs-edit-1-1-Update").click().run()
@@ -94,41 +107,41 @@ def test_full_gui_interaction():
         at = at.tabs[1].button(key="refresh-tasks").click().run()
 
         # calendar views
-        at = at.tabs[2].date_input(key="calendar-date").set_value(date(2024, 1, 1)).run()
+        at = at.tabs[2].date_input(key="calendar-date").set_value(TODAY).run()
         at = at.tabs[2].selectbox[0].set_value("Day").run()
-        assert "2024-01-01" in at.tabs[2].markdown[0].value
+        assert TODAY.isoformat() in at.tabs[2].markdown[0].value
         assert any("Meeting" in md.value for md in at.tabs[2].markdown)
         at = at.tabs[2].button[1].click().run()
-        assert "2024-01-02" in at.tabs[2].markdown[0].value
+        assert (TODAY + timedelta(days=1)).isoformat() in at.tabs[2].markdown[0].value
         at = at.tabs[2].button[0].click().run()
-        assert "2024-01-01" in at.tabs[2].markdown[0].value
+        assert TODAY.isoformat() in at.tabs[2].markdown[0].value
 
         at = at.tabs[2].selectbox[0].set_value("Week").run()
-        assert "2024-01-01" in at.tabs[2].markdown[0].value
+        assert TODAY.isoformat() in at.tabs[2].markdown[0].value
         at = at.tabs[2].button[1].click().run()
-        assert "2024-01-08" in at.tabs[2].markdown[0].value
+        assert (TODAY + timedelta(days=7)).isoformat() in at.tabs[2].markdown[0].value
         at = at.tabs[2].button[0].click().run()
 
         at = at.tabs[2].selectbox[0].set_value("Two Weeks").run()
-        assert "2024-01-01" in at.tabs[2].markdown[0].value
+        assert TODAY.isoformat() in at.tabs[2].markdown[0].value
         at = at.tabs[2].button[1].click().run()
-        assert "2024-01-15" in at.tabs[2].markdown[0].value
+        assert (TODAY + timedelta(days=14)).isoformat() in at.tabs[2].markdown[0].value
         at = at.tabs[2].button[0].click().run()
 
         at = at.tabs[2].selectbox[0].set_value("Month").run()
-        assert "2024-01-01" in at.tabs[2].markdown[0].value
+        assert TODAY.isoformat() in at.tabs[2].markdown[0].value
         at = at.tabs[2].button[1].click().run()
-        assert "2024-02-01" in at.tabs[2].markdown[0].value
+        assert (TODAY + timedelta(days=31)).isoformat() in at.tabs[2].markdown[0].value
         at = at.tabs[2].button[0].click().run()
 
         # update appointment
         at = at.text_input(key="title_1").set_value("Updated Meeting").run()
         at = at.text_input(key="desc_1").set_value("Updated notes").run()
-        at = at.date_input(key="start_date_1").set_value(date(2024, 1, 2)).run()
+        at = at.date_input(key="start_date_1").set_value(TOMORROW).run()
         at = at.time_input(key="start_time_1").set_value(dtime(9, 0)).run()
-        at = at.date_input(key="end_date_1").set_value(date(2024, 1, 2)).run()
+        at = at.date_input(key="end_date_1").set_value(TOMORROW).run()
         at = at.time_input(key="end_time_1").set_value(dtime(10, 0)).run()
-        at = at.tabs[0].button[2].click().run()
+        at = at.tabs[0].button(key="FormSubmitter:edit-form-1-Update").click().run()
         assert "Updated" in [s.value for s in at.success]
         at = at.button(key="refresh-btn").click().run()
         assert any(e.label == "Updated Meeting" for e in at.expander)
@@ -136,15 +149,15 @@ def test_full_gui_interaction():
         # update task
         at = at.text_input(key="task_title_1").set_value("Updated Task").run()
         at = at.text_input(key="task_description_1").set_value("More work").run()
-        at = at.date_input(key="sdate_1").set_value(date(2024, 1, 5)).run()
+        at = at.date_input(key="sdate_1").set_value(TOMORROW + timedelta(days=1)).run()
         at = at.time_input(key="stime_1").set_value(dtime(10, 0)).run()
-        at = at.date_input(key="edate_1").set_value(date(2024, 1, 5)).run()
+        at = at.date_input(key="edate_1").set_value(TOMORROW + timedelta(days=1)).run()
         at = at.time_input(key="etime_1").set_value(dtime(11, 0)).run()
         at = at.number_input(key="pdiff_1").set_value(3).run()
         at = at.number_input(key="ediff_1").set_value(4).run()
         at = at.number_input(key="prio_1").set_value(4).run()
         at = at.checkbox(key="wo_1").check().run()
-        at = at.tabs[1].button[2].click().run()
+        at = at.tabs[1].button(key="FormSubmitter:task-edit-1-Update").click().run()
         assert "Updated" in [s.value for s in at.success]
         at = at.tabs[1].button(key="refresh-tasks").click().run()
         assert any(e.label == "Updated Task" for e in at.expander)

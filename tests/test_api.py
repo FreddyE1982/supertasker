@@ -3,6 +3,7 @@ import time
 import requests
 import os
 import sys
+from datetime import date, timedelta, datetime, time as dtime
 
 import pytest
 
@@ -18,6 +19,8 @@ def wait_for_api(url: str, timeout: float = 5.0):
     return False
 
 API_URL = 'http://localhost:8000'
+TODAY = date.today()
+TOMORROW = TODAY + timedelta(days=1)
 
 @pytest.fixture(autouse=True)
 def start_server():
@@ -36,11 +39,13 @@ def test_create_list_update_delete():
     assert r.status_code == 200
     category = r.json()
 
+    start = datetime.combine(TOMORROW, dtime(10, 0))
+    end = datetime.combine(TOMORROW, dtime(11, 0))
     data = {
         'title': 'Meeting',
         'description': 'Discuss project',
-        'start_time': '2024-01-01T10:00:00',
-        'end_time': '2024-01-01T11:00:00',
+        'start_time': start.isoformat(),
+        'end_time': end.isoformat(),
         'category_id': category['id']
     }
     r = requests.post(f'{API_URL}/appointments', json=data)
@@ -72,9 +77,9 @@ def test_task_crud():
     data = {
         "title": "Task",
         "description": "Do something",
-        "due_date": "2024-01-05",
-        "start_date": "2024-01-04",
-        "end_date": "2024-01-04",
+        "due_date": TOMORROW.isoformat(),
+        "start_date": TODAY.isoformat(),
+        "end_date": TODAY.isoformat(),
         "start_time": "09:00:00",
         "end_time": "10:00:00",
         "perceived_difficulty": 2,
@@ -112,9 +117,9 @@ def test_subtask_crud():
     task_data = {
         "title": "Task",
         "description": "Do something",
-        "due_date": "2024-01-05",
-        "start_date": "2024-01-04",
-        "end_date": "2024-01-04",
+        "due_date": TOMORROW.isoformat(),
+        "start_date": TODAY.isoformat(),
+        "end_date": TODAY.isoformat(),
         "start_time": "09:00:00",
         "end_time": "10:00:00",
         "perceived_difficulty": 2,
@@ -156,9 +161,9 @@ def test_focus_session_crud():
     task_data = {
         "title": "Task",
         "description": "Do something",
-        "due_date": "2024-01-05",
-        "start_date": "2024-01-04",
-        "end_date": "2024-01-04",
+        "due_date": TOMORROW.isoformat(),
+        "start_date": TODAY.isoformat(),
+        "end_date": TODAY.isoformat(),
         "start_time": "09:00:00",
         "end_time": "10:00:00",
         "perceived_difficulty": 2,
@@ -196,3 +201,34 @@ def test_focus_session_crud():
     r = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions")
     assert r.status_code == 200
     assert r.json() == []
+
+
+def test_plan_task():
+    start = datetime.combine(TOMORROW, dtime(9, 0))
+    end = datetime.combine(TOMORROW, dtime(10, 0))
+    appt = {
+        "title": "Busy",
+        "description": "",
+        "start_time": start.isoformat(),
+        "end_time": end.isoformat(),
+    }
+    r = requests.post(f"{API_URL}/appointments", json=appt)
+    assert r.status_code == 200
+
+    data = {
+        "title": "Big Task",
+        "description": "Work", 
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 50,
+        "due_date": TOMORROW.isoformat(),
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 2
+    for s in fs:
+        s_start = datetime.fromisoformat(s["start_time"])
+        s_end = datetime.fromisoformat(s["end_time"])
+        assert not (s_start < end and s_end > start)
+        assert s_end.date() <= TOMORROW

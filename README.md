@@ -72,3 +72,11 @@ Focus sessions help break work into manageable chunks. Endpoints:
 - `GET /tasks/{task_id}/focus_sessions` – list focus sessions for a task
 - `PUT /tasks/{task_id}/focus_sessions/{session_id}` – update a focus session
 - `DELETE /tasks/{task_id}/focus_sessions/{session_id}` – delete a focus session
+
+## Automatic Task Planning
+
+Create and schedule tasks in one step with `POST /tasks/plan`.
+Send JSON with `title`, `description`, `estimated_difficulty`,
+`estimated_duration_minutes` and `due_date`.
+The service splits the work into 25-minute focus sessions with
+Pomodoro-style breaks and ensures no overlap with existing calendar entries.
