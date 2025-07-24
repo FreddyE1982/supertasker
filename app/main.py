@@ -188,6 +188,26 @@ class TaskPlanner:
             return dt.replace(hour=le_end, minute=0, second=0, microsecond=0)
         return dt
 
+    def _prefer_high_energy(
+        self,
+        dt: datetime,
+        difficulty: int,
+        priority: int,
+        session_len: int,
+        start_hour: int,
+        end_hour: int,
+    ) -> datetime:
+        """Move session start into the high energy window for important tasks."""
+        if difficulty < 4 and priority < 4:
+            return dt
+        if end_hour <= start_hour:
+            return dt
+        if dt.hour < start_hour:
+            dt = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+        elif dt.hour + math.ceil(session_len / 60) > end_hour:
+            dt = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        return dt
+
 
     def _schedule_sessions(
         self,
@@ -196,6 +216,8 @@ class TaskPlanner:
         events: list[tuple[datetime, datetime]],
         difficulty: int,
         priority: int,
+        high_energy_start: int | None = None,
+        high_energy_end: int | None = None,
     ) -> list[tuple[datetime, datetime]]:
         session_len = int(os.getenv("SESSION_LENGTH_MINUTES", "25"))
         short_break = int(os.getenv("SHORT_BREAK_MINUTES", "5"))
@@ -203,6 +225,17 @@ class TaskPlanner:
         long_interval = int(os.getenv("SESSIONS_BEFORE_LONG_BREAK", "4"))
         max_per_day = int(os.getenv("MAX_SESSIONS_PER_DAY", "4"))
         needed = (duration + session_len - 1) // session_len
+
+        he_start = (
+            high_energy_start
+            if high_energy_start is not None
+            else int(os.getenv("HIGH_ENERGY_START_HOUR", "9"))
+        )
+        he_end = (
+            high_energy_end
+            if high_energy_end is not None
+            else int(os.getenv("HIGH_ENERGY_END_HOUR", "12"))
+        )
 
         now = self._next_work_time(datetime.utcnow())
         urgency = self._urgency(due)
@@ -242,6 +275,9 @@ class TaskPlanner:
         per_day = 0
         while len(sessions) < needed:
             start = self._avoid_low_energy(now, difficulty)
+            start = self._prefer_high_energy(
+                start, difficulty, priority, session_len, he_start, he_end
+            )
             if start != now:
                 now = self._next_work_time(start)
                 start = now
@@ -324,6 +360,8 @@ class TaskPlanner:
             events,
             data.estimated_difficulty,
             data.priority,
+            data.high_energy_start_hour,
+            data.high_energy_end_hour,
         )
 
         for idx, (s, e) in enumerate(sessions, start=1):

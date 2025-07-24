@@ -571,3 +571,24 @@ def test_planner_avoids_low_energy(monkeypatch):
         start = datetime.fromisoformat(s["start_time"])
         assert not (14 <= start.hour < 16)
 
+
+@pytest.mark.env(HIGH_ENERGY_START_HOUR="8", HIGH_ENERGY_END_HOUR="11")
+def test_planner_prefers_high_energy(monkeypatch):
+    data = {
+        "title": "Energy",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 4,
+        "high_energy_start_hour": 8,
+        "high_energy_end_hour": 11,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    for s in sessions:
+        start = datetime.fromisoformat(s["start_time"])
+        assert 8 <= start.hour < 11
+

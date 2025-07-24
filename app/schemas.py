@@ -62,6 +62,8 @@ class PlanTaskCreate(BaseModel):
     estimated_duration_minutes: int
     due_date: date
     priority: int = 3
+    high_energy_start_hour: int | None = None
+    high_energy_end_hour: int | None = None
 
 
 class TaskUpdate(TaskBase):
