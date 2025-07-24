@@ -61,3 +61,23 @@ class Task(TaskBase):
     id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SubtaskBase(BaseModel):
+    title: str
+    completed: bool = False
+
+
+class SubtaskCreate(SubtaskBase):
+    pass
+
+
+class SubtaskUpdate(SubtaskBase):
+    pass
+
+
+class Subtask(SubtaskBase):
+    id: int
+    task_id: int
+
+    model_config = ConfigDict(from_attributes=True)

@@ -106,3 +106,42 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     db.delete(db_task)
     db.commit()
     return {'detail': 'Deleted'}
+
+
+@app.post('/tasks/{task_id}/subtasks', response_model=schemas.Subtask)
+def create_subtask(task_id: int, subtask: schemas.SubtaskCreate, db: Session = Depends(get_db)):
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail='Task not found')
+    db_sub = models.Subtask(task_id=task_id, **subtask.dict())
+    db.add(db_sub)
+    db.commit()
+    db.refresh(db_sub)
+    return db_sub
+
+
+@app.get('/tasks/{task_id}/subtasks', response_model=list[schemas.Subtask])
+def list_subtasks(task_id: int, db: Session = Depends(get_db)):
+    return db.query(models.Subtask).filter(models.Subtask.task_id == task_id).all()
+
+
+@app.put('/tasks/{task_id}/subtasks/{subtask_id}', response_model=schemas.Subtask)
+def update_subtask(task_id: int, subtask_id: int, subtask: schemas.SubtaskUpdate, db: Session = Depends(get_db)):
+    db_sub = db.query(models.Subtask).filter(models.Subtask.id == subtask_id, models.Subtask.task_id == task_id).first()
+    if not db_sub:
+        raise HTTPException(status_code=404, detail='Subtask not found')
+    for field, value in subtask.dict().items():
+        setattr(db_sub, field, value)
+    db.commit()
+    db.refresh(db_sub)
+    return db_sub
+
+
+@app.delete('/tasks/{task_id}/subtasks/{subtask_id}')
+def delete_subtask(task_id: int, subtask_id: int, db: Session = Depends(get_db)):
+    db_sub = db.query(models.Subtask).filter(models.Subtask.id == subtask_id, models.Subtask.task_id == task_id).first()
+    if not db_sub:
+        raise HTTPException(status_code=404, detail='Subtask not found')
+    db.delete(db_sub)
+    db.commit()
+    return {'detail': 'Deleted'}

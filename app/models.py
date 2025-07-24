@@ -46,3 +46,15 @@ class Task(Base):
     estimated_difficulty = Column(Integer, nullable=True)
     worked_on = Column(Boolean, default=False)
     paused = Column(Boolean, default=False)
+
+    subtasks = relationship("Subtask", back_populates="task", cascade="all, delete-orphan")
+
+
+class Subtask(Base):
+    __tablename__ = "subtasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    completed = Column(Boolean, default=False)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
+    task = relationship("Task", back_populates="subtasks")
