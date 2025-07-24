@@ -86,9 +86,18 @@ a corresponding subtask so large tasks are automatically broken into manageable
 parts.
 The planner honours the ``WORK_START_HOUR`` and ``WORK_END_HOUR`` environment
 variables as well as ``MAX_SESSIONS_PER_DAY`` to adapt to custom working hours
-and workload distribution. More difficult or high priority tasks are placed
-earlier in the day while easier ones are scheduled later, spreading sessions
-across days when needed for smarter and more personalised planning. Session
-times also consider urgency based on how soon a task is due and the planner
-balances the number of focus sessions per day so that work is spread evenly
-until the deadline.
+and workload distribution. Additional settings allow advanced tuning:
+
+- ``SESSION_LENGTH_MINUTES`` – duration of each focus session (default 25)
+- ``SHORT_BREAK_MINUTES`` – short break length (default 5)
+- ``LONG_BREAK_MINUTES`` – long break length (default 15)
+- ``SESSIONS_BEFORE_LONG_BREAK`` – number of sessions before a long break
+  is inserted (default 4)
+- ``WORK_DAYS`` – comma-separated list of weekday numbers (0=Monday) that are
+  considered working days. By default all days are allowed.
+
+More difficult or high priority tasks are placed earlier in the day while
+easier ones are scheduled later, spreading sessions across days when needed for
+smarter and more personalised planning. Session times also consider urgency
+based on how soon a task is due and the planner balances the number of focus
+sessions per day so that work is spread evenly until the deadline.
