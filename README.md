@@ -97,12 +97,17 @@ and workload distribution. Additional settings allow advanced tuning:
   considered working days. By default all days are allowed.
 - ``LUNCH_START_HOUR`` – hour when a daily lunch break begins (default 12)
 - ``LUNCH_DURATION_MINUTES`` – length of the lunch break (default 60)
+- ``DIFFICULTY_WEIGHT`` – weight of difficulty when calculating importance (default 1)
+- ``PRIORITY_WEIGHT`` – weight of priority when calculating importance (default 1)
+- ``URGENCY_WEIGHT`` – weight of due date urgency when calculating importance (default 1)
 
 More difficult or high priority tasks are placed earlier in the day while
 easier ones are scheduled later, spreading sessions across days when needed for
-smarter and more personalised planning. Session times also consider urgency
-based on how soon a task is due and the planner balances the number of focus
-sessions per day so that work is spread evenly until the deadline.
+smarter and more personalised planning. Important tasks start earlier in the
+schedule by weighting difficulty, priority and urgency using the weight
+variables above. Session times also consider urgency based on how soon a task is
+due and the planner balances the number of focus sessions per day so that work
+is spread evenly until the deadline.
 The lunch break settings ensure planning pauses between ``LUNCH_START_HOUR``
 and ``LUNCH_START_HOUR`` plus ``LUNCH_DURATION_MINUTES`` so focus sessions never
 overlap with this daily break.

@@ -519,3 +519,36 @@ def test_planner_avoids_lunch_break(monkeypatch):
         s_end = datetime.fromisoformat(s["end_time"])
         assert not (s_start < lunch_end and s_end > lunch_start)
 
+
+def test_planner_importance_affects_start_day(monkeypatch):
+    future = TODAY + timedelta(days=5)
+    high = {
+        "title": "HighImp",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 25,
+        "due_date": future.isoformat(),
+        "priority": 5,
+    }
+    low = {
+        "title": "LowImp",
+        "description": "",
+        "estimated_difficulty": 1,
+        "estimated_duration_minutes": 25,
+        "due_date": future.isoformat(),
+        "priority": 1,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=high)
+    assert r.status_code == 200
+    high_task = r.json()
+    r = requests.post(f"{API_URL}/tasks/plan", json=low)
+    assert r.status_code == 200
+    low_task = r.json()
+    high_day = datetime.fromisoformat(
+        requests.get(f"{API_URL}/tasks/{high_task['id']}/focus_sessions").json()[0]["start_time"]
+    ).date()
+    low_day = datetime.fromisoformat(
+        requests.get(f"{API_URL}/tasks/{low_task['id']}/focus_sessions").json()[0]["start_time"]
+    ).date()
+    assert high_day <= low_day
+
