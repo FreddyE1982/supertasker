@@ -101,6 +101,9 @@ and workload distribution. Additional settings allow advanced tuning:
 - ``PRIORITY_WEIGHT`` – weight of priority when calculating importance (default 1)
 - ``URGENCY_WEIGHT`` – weight of due date urgency when calculating importance (default 1)
 
+- ``LOW_ENERGY_START_HOUR`` – start of the low energy period to avoid for difficult tasks (default 14)
+- ``LOW_ENERGY_END_HOUR`` – end hour of the low energy period (default 16)
+
 More difficult or high priority tasks are placed earlier in the day while
 easier ones are scheduled later, spreading sessions across days when needed for
 smarter and more personalised planning. Important tasks start earlier in the
@@ -111,3 +114,4 @@ is spread evenly until the deadline.
 The lunch break settings ensure planning pauses between ``LUNCH_START_HOUR``
 and ``LUNCH_START_HOUR`` plus ``LUNCH_DURATION_MINUTES`` so focus sessions never
 overlap with this daily break.
+Hard tasks are also moved out of the ``LOW_ENERGY_START_HOUR`` to ``LOW_ENERGY_END_HOUR`` window to keep sessions productive.
