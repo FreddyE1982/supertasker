@@ -236,3 +236,88 @@ def test_plan_task():
         s_end = datetime.fromisoformat(s["end_time"])
         assert not (s_start < end and s_end > start)
         assert s_end.date() <= TOMORROW
+
+
+def test_plan_task_interlaced():
+    # block current day to force scheduling tomorrow
+    start_block = datetime.combine(TODAY, dtime(0, 0))
+    end_block = datetime.combine(TODAY, dtime(23, 59))
+    block = {
+        "title": "Block",
+        "description": "all day",
+        "start_time": start_block.isoformat(),
+        "end_time": end_block.isoformat(),
+    }
+    r = requests.post(f"{API_URL}/appointments", json=block)
+    assert r.status_code == 200
+
+    # create events and task on the target day
+    appt1 = {
+        "title": "Morning",
+        "description": "",
+        "start_time": datetime.combine(TOMORROW, dtime(9, 0)).isoformat(),
+        "end_time": datetime.combine(TOMORROW, dtime(9, 30)).isoformat(),
+    }
+    appt2 = {
+        "title": "Standup",
+        "description": "",
+        "start_time": datetime.combine(TOMORROW, dtime(10, 0)).isoformat(),
+        "end_time": datetime.combine(TOMORROW, dtime(11, 0)).isoformat(),
+    }
+    r = requests.post(f"{API_URL}/appointments", json=appt1)
+    assert r.status_code == 200
+    r = requests.post(f"{API_URL}/appointments", json=appt2)
+    assert r.status_code == 200
+
+    task_data = {
+        "title": "Existing",
+        "description": "",
+        "due_date": TOMORROW.isoformat(),
+        "start_date": TOMORROW.isoformat(),
+        "end_date": TOMORROW.isoformat(),
+        "start_time": "11:30:00",
+        "end_time": "12:30:00",
+        "perceived_difficulty": 1,
+        "estimated_difficulty": 1,
+        "priority": 3,
+        "worked_on": False,
+        "paused": False,
+    }
+    r = requests.post(f"{API_URL}/tasks", json=task_data)
+    assert r.status_code == 200
+
+    plan = {
+        "title": "New Big Task",
+        "description": "Work",
+        "estimated_difficulty": 2,
+        "estimated_duration_minutes": 100,
+        "due_date": TOMORROW.isoformat(),
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=plan)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 4
+    sessions = [(datetime.fromisoformat(s["start_time"]), datetime.fromisoformat(s["end_time"])) for s in fs]
+    appointments = [
+        (
+            datetime.combine(TOMORROW, dtime(9, 0)),
+            datetime.combine(TOMORROW, dtime(9, 30)),
+        ),
+        (
+            datetime.combine(TOMORROW, dtime(10, 0)),
+            datetime.combine(TOMORROW, dtime(11, 0)),
+        ),
+        (
+            datetime.combine(TOMORROW, dtime(11, 30)),
+            datetime.combine(TOMORROW, dtime(12, 30)),
+        ),
+    ]
+    for s_start, s_end in sessions:
+        assert s_end - s_start == timedelta(minutes=25)
+        for a_start, a_end in appointments:
+            assert not (s_start < a_end and s_end > a_start)
+    for i in range(1, len(sessions)):
+        assert sessions[i][0] - sessions[i - 1][1] >= timedelta(minutes=5)
+    assert sessions[-1][1].date() <= TOMORROW
+
