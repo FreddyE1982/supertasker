@@ -118,6 +118,8 @@ and workload distribution. Additional settings allow advanced tuning:
 - ``LOW_ENERGY_END_HOUR`` – end hour of the low energy period (default 16)
 - ``HIGH_ENERGY_START_HOUR`` – preferred start hour for important tasks (default 9)
 - ``HIGH_ENERGY_END_HOUR`` – end of the preferred high energy window (default 12)
+- ``FATIGUE_BREAK_FACTOR`` – multiply break length by ``1 + sessions_today * factor`` to model fatigue (default 0)
+- ``ENERGY_CURVE`` – comma-separated 24 numbers representing energy levels per hour to pick better start times (optional)
 
 More difficult or high priority tasks are placed earlier in the day while
 easier ones are scheduled later, spreading sessions across days when needed for
