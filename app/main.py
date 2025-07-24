@@ -164,9 +164,18 @@ class TaskPlanner:
         return max(1, 5 - days_left)
 
     def _preferred_start_hour(self, difficulty: int, priority: int, urgency: int) -> int:
+        """Return the preferred start hour based on weighted importance."""
         start_hour = int(os.getenv("WORK_START_HOUR", "9"))
         end_hour = int(os.getenv("WORK_END_HOUR", "17"))
-        weight = (difficulty + priority + urgency) / 3
+
+        diff_w = float(os.getenv("DIFFICULTY_WEIGHT", "1"))
+        prio_w = float(os.getenv("PRIORITY_WEIGHT", "1"))
+        urg_w = float(os.getenv("URGENCY_WEIGHT", "1"))
+        total_w = diff_w + prio_w + urg_w
+
+        weight = (
+            difficulty * diff_w + priority * prio_w + urgency * urg_w
+        ) / total_w
         offset = max(0, round(5 - weight))
         return min(end_hour - 1, start_hour + offset)
 
@@ -189,7 +198,19 @@ class TaskPlanner:
         urgency = self._urgency(due)
         preferred = self._preferred_start_hour(difficulty, priority, urgency)
         days_left = max(1, (due - now.date()).days + 1)
-        target_per_day = min(max_per_day, max(1, math.ceil(needed / days_left)))
+
+        diff_w = float(os.getenv("DIFFICULTY_WEIGHT", "1"))
+        prio_w = float(os.getenv("PRIORITY_WEIGHT", "1"))
+        urg_w = float(os.getenv("URGENCY_WEIGHT", "1"))
+        total_w = diff_w + prio_w + urg_w
+        importance = (
+            difficulty * diff_w + priority * prio_w + urgency * urg_w
+        ) / total_w
+
+        target_per_day = min(
+            max_per_day,
+            max(1, math.ceil((needed / days_left) * (1 + (importance - 3) / 2))),
+        )
         work_days_env = os.getenv("WORK_DAYS")
         if work_days_env:
             work_days = {int(d) for d in work_days_env.split(",")}
@@ -199,7 +220,10 @@ class TaskPlanner:
         last_work_day = due
         while last_work_day.weekday() not in work_days:
             last_work_day -= timedelta(days=1)
-        start_day = max(now.date(), last_work_day - timedelta(days=days_needed - 1))
+
+        offset = round((importance - 1) / 4 * days_left * 0.5)
+        start_candidate = last_work_day - timedelta(days=days_needed - 1 + offset)
+        start_day = max(now.date(), start_candidate)
         now = self._next_work_time(datetime.combine(start_day, time(hour=preferred)))
         if now.hour < preferred:
             now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
