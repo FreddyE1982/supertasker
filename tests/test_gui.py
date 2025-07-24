@@ -106,34 +106,49 @@ def test_full_gui_interaction():
         assert "Deleted" in [s.value for s in at.success]
         at = at.tabs[1].button(key="refresh-tasks").click().run()
 
-        # calendar views
-        at = at.tabs[2].date_input(key="calendar-date").set_value(TODAY).run()
-        at = at.tabs[2].selectbox[0].set_value("Day").run()
-        assert TODAY.isoformat() in at.tabs[2].markdown[0].value
-        assert any("Meeting" in md.value for md in at.tabs[2].markdown)
-        at = at.tabs[2].button[1].click().run()
-        assert (TODAY + timedelta(days=1)).isoformat() in at.tabs[2].markdown[0].value
-        at = at.tabs[2].button[0].click().run()
-        assert TODAY.isoformat() in at.tabs[2].markdown[0].value
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        at = cal_tab.date_input(key="calendar-date").set_value(TODAY).run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        at = cal_tab.selectbox[0].set_value("Day").run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert TODAY.isoformat() in cal_tab.markdown[0].value
+        assert any("Meeting" in md.value for md in cal_tab.markdown)
+        at = cal_tab.button(key="cal-next").click().run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert (TODAY + timedelta(days=1)).isoformat() in cal_tab.markdown[0].value
+        at = cal_tab.button(key="cal-prev").click().run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert TODAY.isoformat() in cal_tab.markdown[0].value
 
-        at = at.tabs[2].selectbox[0].set_value("Week").run()
-        assert TODAY.isoformat() in at.tabs[2].markdown[0].value
-        at = at.tabs[2].button[1].click().run()
-        assert (TODAY + timedelta(days=7)).isoformat() in at.tabs[2].markdown[0].value
-        at = at.tabs[2].button[0].click().run()
+        at = cal_tab.selectbox[0].set_value("Week").run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert TODAY.isoformat() in cal_tab.markdown[0].value
+        at = cal_tab.button(key="cal-next").click().run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert (TODAY + timedelta(days=7)).isoformat() in cal_tab.markdown[0].value
+        at = cal_tab.button(key="cal-prev").click().run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert TODAY.isoformat() in cal_tab.markdown[0].value
 
-        at = at.tabs[2].selectbox[0].set_value("Two Weeks").run()
-        assert TODAY.isoformat() in at.tabs[2].markdown[0].value
-        at = at.tabs[2].button[1].click().run()
-        assert (TODAY + timedelta(days=14)).isoformat() in at.tabs[2].markdown[0].value
-        at = at.tabs[2].button[0].click().run()
+        at = cal_tab.selectbox[0].set_value("Two Weeks").run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert TODAY.isoformat() in cal_tab.markdown[0].value
+        at = cal_tab.button(key="cal-next").click().run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert (TODAY + timedelta(days=14)).isoformat() in cal_tab.markdown[0].value
+        at = cal_tab.button(key="cal-prev").click().run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert TODAY.isoformat() in cal_tab.markdown[0].value
 
-        at = at.tabs[2].selectbox[0].set_value("Month").run()
-        assert TODAY.isoformat() in at.tabs[2].markdown[0].value
-        at = at.tabs[2].button[1].click().run()
-        assert (TODAY + timedelta(days=31)).isoformat() in at.tabs[2].markdown[0].value
-        at = at.tabs[2].button[0].click().run()
-
+        at = cal_tab.selectbox[0].set_value("Month").run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert TODAY.isoformat() in cal_tab.markdown[0].value
+        at = cal_tab.button(key="cal-next").click().run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert (TODAY + timedelta(days=31)).isoformat() in cal_tab.markdown[0].value
+        at = cal_tab.button(key="cal-prev").click().run()
+        cal_tab = next(t for t in at.tabs if t.label == "Calendar")
+        assert TODAY.isoformat() in cal_tab.markdown[0].value
         # update appointment
         at = at.text_input(key="title_1").set_value("Updated Meeting").run()
         at = at.text_input(key="desc_1").set_value("Updated notes").run()

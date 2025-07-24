@@ -222,42 +222,50 @@ with tabs[1]:
     st.header("Tasks")
     for task in st.session_state["tasks"]:
         with st.expander(task["title"]):
-            st.write(f"Due: {task['due_date']} | Priority: {task.get('priority', 3)}")
-            with st.form(f'task-edit-{task["id"]}'):
-                title = st.text_input("Title", value=task["title"], key=f'task_title_{task["id"]}')
-                description = st.text_input("Description", value=task.get("description", ""), key=f'task_description_{task["id"]}')
-                due = st.date_input("Due Date", value=date.fromisoformat(task["due_date"]), key=f'due_{task["id"]}')
-                sdate = st.date_input("Start Date", value=date.fromisoformat(task.get("start_date", task["due_date"])), key=f'sdate_{task["id"]}')
-                stime = st.time_input("Start Time", value=dtime.fromisoformat(task.get("start_time", "00:00:00")), key=f'stime_{task["id"]}')
-                edate = st.date_input("End Date", value=date.fromisoformat(task.get("end_date", task["due_date"])), key=f'edate_{task["id"]}')
-                etime = st.time_input("End Time", value=dtime.fromisoformat(task.get("end_time", "00:00:00")), key=f'etime_{task["id"]}')
-                pdiff = st.number_input("Perceived Difficulty", value=task.get("perceived_difficulty", 0) or 0, key=f'pdiff_{task["id"]}', step=1)
-                ediff = st.number_input("Estimated Difficulty", value=task.get("estimated_difficulty", 0) or 0, key=f'ediff_{task["id"]}', step=1)
-                prio = st.number_input("Priority", value=task.get("priority", 3) or 3, min_value=1, max_value=5, step=1, key=f'prio_{task["id"]}')
-                wo = st.checkbox("Worked On", value=task.get("worked_on", False), key=f'wo_{task["id"]}')
-                pa = st.checkbox("Paused", value=task.get("paused", False), key=f'pa_{task["id"]}')
-                if st.form_submit_button("Update"):
-                    data = {
-                        "title": title,
-                        "description": description,
-                        "due_date": due.isoformat(),
-                        "start_date": sdate.isoformat(),
-                        "end_date": edate.isoformat(),
-                        "start_time": stime.isoformat(),
-                        "end_time": etime.isoformat(),
-                        "perceived_difficulty": int(pdiff),
-                        "estimated_difficulty": int(ediff),
-                        "priority": int(prio),
-                        "worked_on": wo,
-                        "paused": pa,
-                    }
-                    resp = requests.put(f"{API_URL}/tasks/{task['id']}", json=data)
-                    if resp.status_code == 200:
-                        st.success("Updated")
-                        refresh_tasks()
-                    else:
-                        st.error("Error updating task")
-            with st.expander("Subtasks"):
+            st.write(
+                f"Due: {task['due_date']} | Priority: {task.get('priority', 3)}"
+            )
+
+            edit_tab, sub_tab, fs_tab = st.tabs(["Edit", "Subtasks", "Focus Sessions"])
+
+            with edit_tab:
+                with st.form(f'task-edit-{task["id"]}'):
+                    title = st.text_input("Title", value=task["title"], key=f'task_title_{task["id"]}')
+                    description = st.text_input("Description", value=task.get("description", ""), key=f'task_description_{task["id"]}')
+                    due = st.date_input("Due Date", value=date.fromisoformat(task["due_date"]), key=f'due_{task["id"]}')
+                    sdate = st.date_input("Start Date", value=date.fromisoformat(task.get("start_date", task["due_date"])), key=f'sdate_{task["id"]}')
+                    stime = st.time_input("Start Time", value=dtime.fromisoformat(task.get("start_time", "00:00:00")), key=f'stime_{task["id"]}')
+                    edate = st.date_input("End Date", value=date.fromisoformat(task.get("end_date", task["due_date"])), key=f'edate_{task["id"]}')
+                    etime = st.time_input("End Time", value=dtime.fromisoformat(task.get("end_time", "00:00:00")), key=f'etime_{task["id"]}')
+                    pdiff = st.number_input("Perceived Difficulty", value=task.get("perceived_difficulty", 0) or 0, key=f'pdiff_{task["id"]}', step=1)
+                    ediff = st.number_input("Estimated Difficulty", value=task.get("estimated_difficulty", 0) or 0, key=f'ediff_{task["id"]}', step=1)
+                    prio = st.number_input("Priority", value=task.get("priority", 3) or 3, min_value=1, max_value=5, step=1, key=f'prio_{task["id"]}')
+                    wo = st.checkbox("Worked On", value=task.get("worked_on", False), key=f'wo_{task["id"]}')
+                    pa = st.checkbox("Paused", value=task.get("paused", False), key=f'pa_{task["id"]}')
+                    if st.form_submit_button("Update"):
+                        data = {
+                            "title": title,
+                            "description": description,
+                            "due_date": due.isoformat(),
+                            "start_date": sdate.isoformat(),
+                            "end_date": edate.isoformat(),
+                            "start_time": stime.isoformat(),
+                            "end_time": etime.isoformat(),
+                            "perceived_difficulty": int(pdiff),
+                            "estimated_difficulty": int(ediff),
+                            "priority": int(prio),
+                            "worked_on": wo,
+                            "paused": pa,
+                        }
+                        resp = requests.put(
+                            f"{API_URL}/tasks/{task['id']}", json=data
+                        )
+                        if resp.status_code == 200:
+                            st.success("Updated")
+                            refresh_tasks()
+                        else:
+                            st.error("Error updating task")
+            with sub_tab:
                 for sub in task.get("subtasks", []):
                     with st.form(f'subtask-edit-{task["id"]}-{sub["id"]}'):
                         stitle = st.text_input("Title", value=sub["title"], key=f'subtitle_{task["id"]}_{sub["id"]}')
@@ -287,7 +295,8 @@ with tabs[1]:
                             refresh_tasks()
                         else:
                             st.error("Error creating subtask")
-            with st.expander("Focus Sessions"):
+
+            with fs_tab:
                 for fs in task.get("focus_sessions", []):
                     with st.form(f'fs-edit-{task["id"]}-{fs["id"]}'):
                         end_dt = datetime.fromisoformat(fs["end_time"])
@@ -442,6 +451,16 @@ with tabs[2]:
                 "end": edt.isoformat(),
             }
         )
+        for fs in task.get("focus_sessions", []):
+            events.append(
+                {
+                    "id": f"fs{fs['id']}",
+                    "title": f"Focus: {task['title']}",
+                    "start": fs["start_time"],
+                    "end": fs["end_time"],
+                    "color": "#888888",
+                }
+            )
 
     options = {
         "initialDate": st.session_state["calendar_date"].isoformat(),
