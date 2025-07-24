@@ -58,6 +58,7 @@ def test_full_gui_interaction():
         at = at.tabs[1].text_input(key="plan-title").input("Planned").run()
         at = at.tabs[1].text_input(key="plan-desc").input("Auto").run()
         at = at.tabs[1].number_input(key="plan-diff").set_value(3).run()
+        at = at.tabs[1].number_input(key="plan-priority").set_value(3).run()
         at = at.tabs[1].number_input(key="plan-dur").set_value(50).run()
         at = at.tabs[1].date_input(key="plan-due").set_value(TOMORROW).run()
         at = at.tabs[1].button(key="FormSubmitter:plan-form-Plan").click().run()

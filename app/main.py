@@ -1,5 +1,6 @@
-from datetime import datetime, date, time as dtime, timedelta
+from datetime import datetime, date, time, timedelta
 import os
+import math
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 
@@ -131,10 +132,10 @@ class TaskPlanner:
                 return True
         return False
 
-    def _preferred_start_hour(self, difficulty: int) -> int:
+    def _preferred_start_hour(self, difficulty: int, priority: int) -> int:
         start_hour = int(os.getenv("WORK_START_HOUR", "9"))
         end_hour = int(os.getenv("WORK_END_HOUR", "17"))
-        offset = max(0, 5 - difficulty)
+        offset = max(0, 5 - difficulty - (priority - 3))
         return min(end_hour - 1, start_hour + offset)
 
     def _schedule_sessions(
@@ -143,18 +144,24 @@ class TaskPlanner:
         due: date,
         events: list[tuple[datetime, datetime]],
         difficulty: int,
+        priority: int,
     ) -> list[tuple[datetime, datetime]]:
         session_len = 25
         short_break = 5
         long_break = 15
+        max_per_day = int(os.getenv("MAX_SESSIONS_PER_DAY", "4"))
         needed = (duration + session_len - 1) // session_len
 
         now = self._next_work_time(datetime.utcnow())
-        preferred = self._preferred_start_hour(difficulty)
+        preferred = self._preferred_start_hour(difficulty, priority)
+        days_needed = math.ceil(needed / max_per_day)
+        start_day = max(now.date(), due - timedelta(days=days_needed - 1))
+        now = self._next_work_time(datetime.combine(start_day, time(hour=preferred)))
         if now.hour < preferred:
             now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
         sessions: list[tuple[datetime, datetime]] = []
         since_break = 0
+        per_day = 0
         while len(sessions) < needed:
             start = now
             end = start + timedelta(minutes=session_len)
@@ -165,12 +172,24 @@ class TaskPlanner:
                 now = self._next_work_time(start + timedelta(days=1))
                 if now.hour < preferred:
                     now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
+                per_day = 0
                 continue
             if self._conflicts(start, end, events):
                 overlap_end = max(e for s, e in events if start < e and end > s)
                 now = self._next_work_time(overlap_end)
                 if now.hour < preferred:
                     now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
+                if sessions and now.date() != sessions[-1][0].date():
+                    per_day = 0
+                continue
+            if per_day >= max_per_day:
+                start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+                now = self._next_work_time(
+                    datetime.combine(start.date() + timedelta(days=1), time(hour=start_hour))
+                )
+                if now.hour < preferred:
+                    now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
+                per_day = 0
                 continue
             sessions.append((start, end))
             events.append((start, end))
@@ -178,7 +197,10 @@ class TaskPlanner:
             break_end = end + timedelta(minutes=break_len)
             events.append((end, break_end))
             now = self._next_work_time(break_end)
+            if now.hour < preferred:
+                now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
             since_break = (since_break + 1) % 4
+            per_day += 1
         return sessions
 
     def plan(self, data: schemas.PlanTaskCreate) -> models.Task:
@@ -188,6 +210,7 @@ class TaskPlanner:
             due_date=data.due_date,
             estimated_difficulty=data.estimated_difficulty,
             estimated_duration_minutes=data.estimated_duration_minutes,
+            priority=data.priority,
         )
         self.db.add(task)
         self.db.commit()
@@ -199,6 +222,7 @@ class TaskPlanner:
             data.due_date,
             events,
             data.estimated_difficulty,
+            data.priority,
         )
 
         for idx, (s, e) in enumerate(sessions, start=1):

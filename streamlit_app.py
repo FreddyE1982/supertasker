@@ -165,6 +165,7 @@ with tabs[1]:
         p_title = st.text_input("Title", key="plan-title")
         p_desc = st.text_input("Description", key="plan-desc")
         p_diff = st.number_input("Estimated Difficulty", min_value=1, max_value=5, step=1, key="plan-diff")
+        p_priority = st.number_input("Priority", value=3, min_value=1, max_value=5, step=1, key="plan-priority")
         p_duration = st.number_input("Estimated Duration Minutes", min_value=1, step=1, key="plan-dur")
         p_due = st.date_input("Due Date", key="plan-due")
         if st.form_submit_button("Plan"):
@@ -174,6 +175,7 @@ with tabs[1]:
                 "estimated_difficulty": int(p_diff),
                 "estimated_duration_minutes": int(p_duration),
                 "due_date": p_due.isoformat(),
+                "priority": int(p_priority),
             }
             r = requests.post(f"{API_URL}/tasks/plan", json=data)
             if r.status_code == 200:

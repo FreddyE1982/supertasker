@@ -61,6 +61,7 @@ class PlanTaskCreate(BaseModel):
     estimated_difficulty: int
     estimated_duration_minutes: int
     due_date: date
+    priority: int = 3
 
 
 class TaskUpdate(TaskBase):

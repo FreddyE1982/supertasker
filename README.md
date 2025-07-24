@@ -77,7 +77,7 @@ Focus sessions help break work into manageable chunks. Endpoints:
 
 Create and schedule tasks in one step with `POST /tasks/plan`.
 Send JSON with `title`, `description`, `estimated_difficulty`,
-`estimated_duration_minutes` and `due_date`.
+`estimated_duration_minutes`, `due_date` and optional `priority`.
 The service splits the work into 25-minute focus sessions with
 Pomodoro-style breaks and ensures no overlap with existing calendar entries.
 Sessions are interlaced with all current appointments and tasks so that work
@@ -85,6 +85,7 @@ fits naturally into the free slots of the day. Each focus session also creates
 a corresponding subtask so large tasks are automatically broken into manageable
 parts.
 The planner honours the ``WORK_START_HOUR`` and ``WORK_END_HOUR`` environment
-variables to adapt to custom working hours. More difficult tasks are placed
-earlier in the day while easier ones are scheduled later, making the automated
-planning smarter and more personalised.
+variables as well as ``MAX_SESSIONS_PER_DAY`` to adapt to custom working hours
+and workload distribution. More difficult or high priority tasks are placed
+earlier in the day while easier ones are scheduled later, spreading sessions
+across days when needed for smarter and more personalised planning.
