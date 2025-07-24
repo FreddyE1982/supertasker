@@ -104,6 +104,8 @@ and workload distribution. Additional settings allow advanced tuning:
 - ``MAX_SESSIONS_PER_DAY`` – maximum sessions per task each day (default 4)
 - ``DAILY_SESSION_LIMIT`` – maximum sessions from all tasks on a single day
   (default unlimited)
+- ``INTELLIGENT_DAY_ORDER`` – prefer days with more free time when scheduling
+  focus sessions (default disabled)
 - ``WORK_DAYS`` – comma-separated list of weekday numbers (0=Monday) that are
   considered working days. By default all days are allowed.
 - ``LUNCH_START_HOUR`` – hour when a daily lunch break begins (default 12)

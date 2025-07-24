@@ -667,3 +667,33 @@ def test_dynamic_break_length(monkeypatch):
     second_start = datetime.fromisoformat(sessions[1]["start_time"])
     assert (second_start - first_end) == timedelta(minutes=8)
 
+
+@pytest.mark.env(INTELLIGENT_DAY_ORDER="1")
+def test_intelligent_day_order(monkeypatch):
+    busy_start = datetime.combine(TOMORROW, dtime(9, 0))
+    busy_end = datetime.combine(TOMORROW, dtime(16, 0))
+    appt = {
+        "title": "Busy Day",
+        "description": "",
+        "start_time": busy_start.isoformat(),
+        "end_time": busy_end.isoformat(),
+    }
+    r = requests.post(f"{API_URL}/appointments", json=appt)
+    assert r.status_code == 200
+
+    plan = {
+        "title": "Smart",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": (TOMORROW + timedelta(days=1)).isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=plan)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    start_day = datetime.fromisoformat(fs[0]["start_time"]).date()
+    assert start_day == TOMORROW + timedelta(days=1)
+

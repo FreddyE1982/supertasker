@@ -247,6 +247,50 @@ class TaskPlanner:
         long = max(min_long, min(max_long, long))
         return short, long
 
+    def _free_minutes(
+        self, day: date, events: list[tuple[datetime, datetime]]
+    ) -> int:
+        """Return available working minutes on ``day`` excluding existing events."""
+        start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+        end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+        lunch_start = int(os.getenv("LUNCH_START_HOUR", "12"))
+        lunch_dur = int(os.getenv("LUNCH_DURATION_MINUTES", "60"))
+        work_start = datetime.combine(day, time(hour=start_hour))
+        work_end = datetime.combine(day, time(hour=end_hour))
+        lunch_s = datetime.combine(day, time(hour=lunch_start))
+        lunch_e = lunch_s + timedelta(minutes=lunch_dur)
+
+        intervals = [(work_start, lunch_s), (lunch_e, work_end)]
+        total = sum(int((e - s).total_seconds() // 60) for s, e in intervals)
+        busy = 0
+        for s, e in events:
+            for ws, we in intervals:
+                overlap_start = max(s, ws)
+                overlap_end = min(e, we)
+                if overlap_start < overlap_end:
+                    busy += int((overlap_end - overlap_start).total_seconds() // 60)
+        return max(0, total - busy)
+
+    def _next_day_by_free_time(
+        self,
+        start: date,
+        last_day: date,
+        events: list[tuple[datetime, datetime]],
+        work_days: set[int],
+    ) -> date:
+        """Return the next planning day, preferring one with most free minutes."""
+        days: list[date] = []
+        d = start
+        while d <= last_day:
+            if d.weekday() in work_days:
+                days.append(d)
+            d += timedelta(days=1)
+        if not days:
+            raise HTTPException(status_code=400, detail="Cannot schedule before due date")
+        if os.getenv("INTELLIGENT_DAY_ORDER", "0") in {"1", "true", "True"}:
+            days.sort(key=lambda day: self._free_minutes(day, events), reverse=True)
+        return days[0]
+
 
     def _schedule_sessions(
         self,
@@ -308,6 +352,7 @@ class TaskPlanner:
         offset = round((importance - 1) / 4 * days_left * 0.5)
         start_candidate = last_work_day - timedelta(days=days_needed - 1 + offset)
         start_day = max(now.date(), start_candidate)
+        start_day = self._next_day_by_free_time(start_day, last_work_day, events, work_days)
         now = self._next_work_time(datetime.combine(start_day, time(hour=preferred)))
         if now.hour < preferred:
             now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
@@ -317,8 +362,14 @@ class TaskPlanner:
         while len(sessions) < needed:
             if daily_limit and daily_counts.get(now.date(), 0) >= daily_limit:
                 start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+                next_day = self._next_day_by_free_time(
+                    now.date() + timedelta(days=1),
+                    last_work_day,
+                    events,
+                    work_days,
+                )
                 now = self._next_work_time(
-                    datetime.combine(now.date() + timedelta(days=1), time(hour=start_hour))
+                    datetime.combine(next_day, time(hour=start_hour))
                 )
                 if now.hour < preferred:
                     now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
@@ -367,8 +418,14 @@ class TaskPlanner:
                     target_per_day = max_per_day
                 else:
                     start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+                    next_day = self._next_day_by_free_time(
+                        start.date() + timedelta(days=1),
+                        last_work_day,
+                        events,
+                        work_days,
+                    )
                     now = self._next_work_time(
-                        datetime.combine(start.date() + timedelta(days=1), time(hour=start_hour))
+                        datetime.combine(next_day, time(hour=start_hour))
                     )
                     if now.hour < preferred:
                         now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
