@@ -48,6 +48,11 @@ class Task(Base):
     paused = Column(Boolean, default=False)
 
     subtasks = relationship("Subtask", back_populates="task", cascade="all, delete-orphan")
+    focus_sessions = relationship(
+        "FocusSession",
+        back_populates="task",
+        cascade="all, delete-orphan",
+    )
 
 
 class Subtask(Base):
@@ -58,3 +63,15 @@ class Subtask(Base):
     completed = Column(Boolean, default=False)
     task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
     task = relationship("Task", back_populates="subtasks")
+
+
+class FocusSession(Base):
+    __tablename__ = "focus_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id"), nullable=False)
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    completed = Column(Boolean, default=False)
+
+    task = relationship("Task", back_populates="focus_sessions")

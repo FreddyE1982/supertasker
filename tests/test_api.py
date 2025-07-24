@@ -144,3 +144,48 @@ def test_subtask_crud():
     r = requests.get(f"{API_URL}/tasks/{task['id']}/subtasks")
     assert r.status_code == 200
     assert r.json() == []
+
+
+def test_focus_session_crud():
+    task_data = {
+        "title": "Task",
+        "description": "Do something",
+        "due_date": "2024-01-05",
+        "start_date": "2024-01-04",
+        "end_date": "2024-01-04",
+        "start_time": "09:00:00",
+        "end_time": "10:00:00",
+        "perceived_difficulty": 2,
+        "estimated_difficulty": 3,
+        "worked_on": False,
+        "paused": False,
+    }
+    r = requests.post(f"{API_URL}/tasks", json=task_data)
+    assert r.status_code == 200
+    task = r.json()
+
+    fs_data = {"duration_minutes": 25}
+    r = requests.post(f"{API_URL}/tasks/{task['id']}/focus_sessions", json=fs_data)
+    assert r.status_code == 200
+    session = r.json()
+    assert session["task_id"] == task["id"]
+
+    r = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions")
+    assert r.status_code == 200
+    assert len(r.json()) == 1
+
+    update = {"completed": True}
+    r = requests.put(
+        f"{API_URL}/tasks/{task['id']}/focus_sessions/{session['id']}",
+        json=update,
+    )
+    assert r.status_code == 200
+    assert r.json()["completed"] is True
+
+    r = requests.delete(
+        f"{API_URL}/tasks/{task['id']}/focus_sessions/{session['id']}"
+    )
+    assert r.status_code == 200
+    r = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions")
+    assert r.status_code == 200
+    assert r.json() == []

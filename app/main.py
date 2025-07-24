@@ -1,6 +1,7 @@
 from datetime import datetime, date, time as dtime
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
 
 from . import models, schemas
 from .database import SessionLocal, engine, Base
@@ -16,6 +17,67 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+class FocusSessionService:
+    """Manage focus sessions for tasks."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def create(self, task_id: int, duration_minutes: int) -> models.FocusSession:
+        task = self.db.query(models.Task).filter(models.Task.id == task_id).first()
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        start = datetime.utcnow()
+        end = start + timedelta(minutes=duration_minutes)
+        session = models.FocusSession(
+            task_id=task_id, start_time=start, end_time=end, completed=False
+        )
+        self.db.add(session)
+        self.db.commit()
+        self.db.refresh(session)
+        return session
+
+    def list(self, task_id: int) -> list[models.FocusSession]:
+        return (
+            self.db.query(models.FocusSession)
+            .filter(models.FocusSession.task_id == task_id)
+            .all()
+        )
+
+    def update(
+        self, task_id: int, session_id: int, data: schemas.FocusSessionUpdate
+    ) -> models.FocusSession:
+        session = (
+            self.db.query(models.FocusSession)
+            .filter(
+                models.FocusSession.id == session_id,
+                models.FocusSession.task_id == task_id,
+            )
+            .first()
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="Focus session not found")
+        for field, value in data.dict(exclude_unset=True).items():
+            setattr(session, field, value)
+        self.db.commit()
+        self.db.refresh(session)
+        return session
+
+    def delete(self, task_id: int, session_id: int) -> None:
+        session = (
+            self.db.query(models.FocusSession)
+            .filter(
+                models.FocusSession.id == session_id,
+                models.FocusSession.task_id == task_id,
+            )
+            .first()
+        )
+        if not session:
+            raise HTTPException(status_code=404, detail="Focus session not found")
+        self.db.delete(session)
+        self.db.commit()
 
 
 @app.post("/categories", response_model=schemas.Category)
@@ -144,4 +206,29 @@ def delete_subtask(task_id: int, subtask_id: int, db: Session = Depends(get_db))
         raise HTTPException(status_code=404, detail='Subtask not found')
     db.delete(db_sub)
     db.commit()
+    return {'detail': 'Deleted'}
+
+
+@app.post('/tasks/{task_id}/focus_sessions', response_model=schemas.FocusSession)
+def create_focus_session(task_id: int, fs: schemas.FocusSessionCreate, db: Session = Depends(get_db)):
+    service = FocusSessionService(db)
+    return service.create(task_id, fs.duration_minutes)
+
+
+@app.get('/tasks/{task_id}/focus_sessions', response_model=list[schemas.FocusSession])
+def list_focus_sessions(task_id: int, db: Session = Depends(get_db)):
+    service = FocusSessionService(db)
+    return service.list(task_id)
+
+
+@app.put('/tasks/{task_id}/focus_sessions/{session_id}', response_model=schemas.FocusSession)
+def update_focus_session(task_id: int, session_id: int, fs: schemas.FocusSessionUpdate, db: Session = Depends(get_db)):
+    service = FocusSessionService(db)
+    return service.update(task_id, session_id, fs)
+
+
+@app.delete('/tasks/{task_id}/focus_sessions/{session_id}')
+def delete_focus_session(task_id: int, session_id: int, db: Session = Depends(get_db)):
+    service = FocusSessionService(db)
+    service.delete(task_id, session_id)
     return {'detail': 'Deleted'}
