@@ -81,3 +81,25 @@ class Subtask(SubtaskBase):
     task_id: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class FocusSessionBase(BaseModel):
+    start_time: datetime
+    end_time: datetime
+    completed: bool = False
+
+
+class FocusSessionCreate(BaseModel):
+    duration_minutes: int
+
+
+class FocusSessionUpdate(BaseModel):
+    end_time: datetime | None = None
+    completed: bool | None = None
+
+
+class FocusSession(FocusSessionBase):
+    id: int
+    task_id: int
+
+    model_config = ConfigDict(from_attributes=True)

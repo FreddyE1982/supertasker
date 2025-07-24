@@ -73,6 +73,25 @@ def test_full_gui_interaction():
         assert "Created" in [s.value for s in at.success]
         at = at.tabs[1].button(key="refresh-tasks").click().run()
 
+        # create focus session
+        at = at.number_input(key="fs_dur_1").set_value(30).run()
+        at = at.button(key="fs_start_1").click().run()
+        assert "Created" in [s.value for s in at.success]
+        at = at.tabs[1].button(key="refresh-tasks").click().run()
+
+        # update focus session
+        at = at.date_input(key="fs_end_date_1_1").set_value(date(2024, 1, 4)).run()
+        at = at.time_input(key="fs_end_time_1_1").set_value(dtime(10, 30)).run()
+        at = at.checkbox(key="fs_comp_1_1").check().run()
+        at = at.button(key="FormSubmitter:fs-edit-1-1-Update").click().run()
+        assert "Updated" in [s.value for s in at.success]
+        at = at.tabs[1].button(key="refresh-tasks").click().run()
+
+        # delete focus session
+        at = at.button(key="fsdel_1_1").click().run()
+        assert "Deleted" in [s.value for s in at.success]
+        at = at.tabs[1].button(key="refresh-tasks").click().run()
+
         # calendar views
         at = at.tabs[2].date_input(key="calendar-date").set_value(date(2024, 1, 1)).run()
         at = at.tabs[2].selectbox[0].set_value("Day").run()

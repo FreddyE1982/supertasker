@@ -39,6 +39,8 @@ def refresh_tasks():
         for t in tasks:
             sresp = requests.get(f"{API_URL}/tasks/{t['id']}/subtasks")
             t["subtasks"] = sresp.json() if sresp.status_code == 200 else []
+            fresp = requests.get(f"{API_URL}/tasks/{t['id']}/focus_sessions")
+            t["focus_sessions"] = fresp.json() if fresp.status_code == 200 else []
         st.session_state["tasks"] = tasks
 
 
@@ -259,6 +261,68 @@ with tabs[1]:
                             refresh_tasks()
                         else:
                             st.error("Error creating subtask")
+            with st.expander("Focus Sessions"):
+                for fs in task.get("focus_sessions", []):
+                    with st.form(f'fs-edit-{task["id"]}-{fs["id"]}'):
+                        end_dt = datetime.fromisoformat(fs["end_time"])
+                        end_date = st.date_input(
+                            "End Date",
+                            value=end_dt.date(),
+                            key=f'fs_end_date_{task["id"]}_{fs["id"]}',
+                        )
+                        end_time = st.time_input(
+                            "End Time",
+                            value=end_dt.time(),
+                            key=f'fs_end_time_{task["id"]}_{fs["id"]}',
+                        )
+                        completed = st.checkbox(
+                            "Completed",
+                            value=fs.get("completed", False),
+                            key=f'fs_comp_{task["id"]}_{fs["id"]}',
+                        )
+                        if st.form_submit_button("Update"):
+                            data = {
+                                "end_time": datetime.combine(end_date, end_time).isoformat(),
+                                "completed": completed,
+                            }
+                            r = requests.put(
+                                f"{API_URL}/tasks/{task['id']}/focus_sessions/{fs['id']}",
+                                json=data,
+                            )
+                            if r.status_code == 200:
+                                st.success("Updated")
+                                refresh_tasks()
+                            else:
+                                st.error("Error updating session")
+                    if st.button(
+                        "Delete",
+                        key=f'fsdel_{task["id"]}_{fs["id"]}',
+                    ):
+                        r = requests.delete(
+                            f"{API_URL}/tasks/{task['id']}/focus_sessions/{fs['id']}"
+                        )
+                        if r.status_code == 200:
+                            st.success("Deleted")
+                            refresh_tasks()
+                        else:
+                            st.error("Error deleting session")
+                duration = st.number_input(
+                    "Duration Minutes",
+                    value=25,
+                    step=1,
+                    key=f'fs_dur_{task["id"]}',
+                )
+                if st.button("Start Session", key=f'fs_start_{task["id"]}'):
+                    data = {"duration_minutes": int(duration)}
+                    r = requests.post(
+                        f"{API_URL}/tasks/{task['id']}/focus_sessions",
+                        json=data,
+                    )
+                    if r.status_code == 200:
+                        st.success("Created")
+                        refresh_tasks()
+                    else:
+                        st.error("Error creating session")
             if st.button("Delete", key=f'task_del_{task["id"]}'):
                 resp = requests.delete(f"{API_URL}/tasks/{task['id']}")
                 if resp.status_code == 200:

@@ -2,6 +2,7 @@
 
 This project provides a simple calendar application with a REST API and a Streamlit GUI. Users can create, update, delete, and list appointments.
 It also supports managing tasks with optional subtasks. Subtasks are useful for breaking large tasks into smaller steps, which can be helpful for users with ADHD.
+Additionally, tasks now support **focus sessions** to encourage short, timed work intervals. This feature is designed with ADHD users in mind to aid concentration.
 
 ## Requirements
 
@@ -56,3 +57,12 @@ Subtasks are managed via the following endpoints:
 - `GET /tasks/{task_id}/subtasks` – list subtasks of a task
 - `PUT /tasks/{task_id}/subtasks/{subtask_id}` – update a subtask
 - `DELETE /tasks/{task_id}/subtasks/{subtask_id}` – delete a subtask
+
+## Focus Session API
+
+Focus sessions help break work into manageable chunks. Endpoints:
+
+- `POST /tasks/{task_id}/focus_sessions` – start a focus session
+- `GET /tasks/{task_id}/focus_sessions` – list focus sessions for a task
+- `PUT /tasks/{task_id}/focus_sessions/{session_id}` – update a focus session
+- `DELETE /tasks/{task_id}/focus_sessions/{session_id}` – delete a focus session
