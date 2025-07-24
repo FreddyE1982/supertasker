@@ -171,6 +171,7 @@ with tabs[1]:
         end_time = st.time_input("End Time", key="task-end-time")
         perceived = st.number_input("Perceived Difficulty", value=0, step=1, key="task-perceived")
         estimated = st.number_input("Estimated Difficulty", value=0, step=1, key="task-estimated")
+        priority = st.number_input("Priority", value=3, min_value=1, max_value=5, step=1, key="task-priority")
         worked_on = st.checkbox("Worked On", value=False, key="task-worked")
         paused = st.checkbox("Paused", value=False, key="task-paused")
         submitted = st.form_submit_button("Create")
@@ -185,6 +186,7 @@ with tabs[1]:
                 "end_time": end_time.isoformat(),
                 "perceived_difficulty": int(perceived),
                 "estimated_difficulty": int(estimated),
+                "priority": int(priority),
                 "worked_on": worked_on,
                 "paused": paused,
             }
@@ -198,7 +200,7 @@ with tabs[1]:
     st.header("Tasks")
     for task in st.session_state["tasks"]:
         with st.expander(task["title"]):
-            st.write(f"Due: {task['due_date']}")
+            st.write(f"Due: {task['due_date']} | Priority: {task.get('priority', 3)}")
             with st.form(f'task-edit-{task["id"]}'):
                 title = st.text_input("Title", value=task["title"], key=f'task_title_{task["id"]}')
                 description = st.text_input("Description", value=task.get("description", ""), key=f'task_description_{task["id"]}')
@@ -209,6 +211,7 @@ with tabs[1]:
                 etime = st.time_input("End Time", value=dtime.fromisoformat(task.get("end_time", "00:00:00")), key=f'etime_{task["id"]}')
                 pdiff = st.number_input("Perceived Difficulty", value=task.get("perceived_difficulty", 0) or 0, key=f'pdiff_{task["id"]}', step=1)
                 ediff = st.number_input("Estimated Difficulty", value=task.get("estimated_difficulty", 0) or 0, key=f'ediff_{task["id"]}', step=1)
+                prio = st.number_input("Priority", value=task.get("priority", 3) or 3, min_value=1, max_value=5, step=1, key=f'prio_{task["id"]}')
                 wo = st.checkbox("Worked On", value=task.get("worked_on", False), key=f'wo_{task["id"]}')
                 pa = st.checkbox("Paused", value=task.get("paused", False), key=f'pa_{task["id"]}')
                 if st.form_submit_button("Update"):
@@ -222,6 +225,7 @@ with tabs[1]:
                         "end_time": etime.isoformat(),
                         "perceived_difficulty": int(pdiff),
                         "estimated_difficulty": int(ediff),
+                        "priority": int(prio),
                         "worked_on": wo,
                         "paused": pa,
                     }

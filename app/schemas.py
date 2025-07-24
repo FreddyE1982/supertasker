@@ -45,6 +45,7 @@ class TaskBase(BaseModel):
     end_time: time | None = None
     perceived_difficulty: int | None = None
     estimated_difficulty: int | None = None
+    priority: int = 3
     worked_on: bool = False
     paused: bool = False
 

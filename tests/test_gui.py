@@ -62,6 +62,7 @@ def test_full_gui_interaction():
         at = at.tabs[1].time_input(key="task-end-time").set_value(dtime(10, 0)).run()
         at = at.tabs[1].number_input(key="task-perceived").set_value(2).run()
         at = at.tabs[1].number_input(key="task-estimated").set_value(3).run()
+        at = at.tabs[1].number_input(key="task-priority").set_value(3).run()
         at = at.tabs[1].button[1].click().run()
         assert "Created" in [s.value for s in at.success]
         at = at.tabs[1].button(key="refresh-tasks").click().run()
@@ -141,6 +142,7 @@ def test_full_gui_interaction():
         at = at.time_input(key="etime_1").set_value(dtime(11, 0)).run()
         at = at.number_input(key="pdiff_1").set_value(3).run()
         at = at.number_input(key="ediff_1").set_value(4).run()
+        at = at.number_input(key="prio_1").set_value(4).run()
         at = at.checkbox(key="wo_1").check().run()
         at = at.tabs[1].button[2].click().run()
         assert "Updated" in [s.value for s in at.success]
