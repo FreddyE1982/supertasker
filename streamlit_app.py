@@ -185,6 +185,18 @@ with tabs[1]:
             step=1,
             key="plan-he-end",
         )
+        p_fatigue = st.number_input(
+            "Fatigue Break Factor",
+            min_value=0.0,
+            value=float(os.getenv("FATIGUE_BREAK_FACTOR", "0")),
+            step=0.1,
+            key="plan-fatigue",
+        )
+        p_curve = st.text_input(
+            "Energy Curve (24 comma numbers)",
+            value=os.getenv("ENERGY_CURVE", ""),
+            key="plan-curve",
+        )
         if st.form_submit_button("Plan"):
             data = {
                 "title": p_title,
@@ -195,6 +207,8 @@ with tabs[1]:
                 "priority": int(p_priority),
                 "high_energy_start_hour": int(he_start),
                 "high_energy_end_hour": int(he_end),
+                "fatigue_break_factor": float(p_fatigue),
+                "energy_curve": [int(x) for x in p_curve.split(",") if x.strip()],
             }
             r = requests.post(f"{API_URL}/tasks/plan", json=data)
             if r.status_code == 200:

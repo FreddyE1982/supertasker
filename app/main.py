@@ -171,10 +171,31 @@ class TaskPlanner:
             return 5
         return max(1, 5 - days_left)
 
-    def _preferred_start_hour(self, difficulty: int, priority: int, urgency: int) -> int:
-        """Return the preferred start hour based on weighted importance."""
+    def _preferred_start_hour(
+        self,
+        difficulty: int,
+        priority: int,
+        urgency: int,
+        energy_curve: list[int] | None = None,
+    ) -> int:
+        """Return the preferred start hour based on weighted importance and optional energy curve."""
         start_hour = int(os.getenv("WORK_START_HOUR", "9"))
         end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+
+        if energy_curve is None:
+            curve_env = os.getenv("ENERGY_CURVE")
+            if curve_env:
+                try:
+                    curve = [int(x) for x in curve_env.split(",")]
+                    if len(curve) == 24:
+                        energy_curve = curve
+                except ValueError:
+                    energy_curve = None
+
+        if energy_curve and len(energy_curve) == 24:
+            hours = range(start_hour, end_hour)
+            best = max(hours, key=lambda h: energy_curve[h])
+            return best
 
         diff_w = float(os.getenv("DIFFICULTY_WEIGHT", "1"))
         prio_w = float(os.getenv("PRIORITY_WEIGHT", "1"))
@@ -301,6 +322,8 @@ class TaskPlanner:
         priority: int,
         high_energy_start: int | None = None,
         high_energy_end: int | None = None,
+        fatigue_break_factor: float | None = None,
+        energy_curve: list[int] | None = None,
     ) -> list[tuple[datetime, datetime]]:
         session_len = self._session_length(difficulty, priority)
         short_break, long_break = self._break_lengths(session_len, difficulty)
@@ -324,7 +347,9 @@ class TaskPlanner:
 
         now = self._next_work_time(datetime.utcnow())
         urgency = self._urgency(due)
-        preferred = self._preferred_start_hour(difficulty, priority, urgency)
+        preferred = self._preferred_start_hour(
+            difficulty, priority, urgency, energy_curve
+        )
         days_left = max(1, (due - now.date()).days + 1)
 
         diff_w = float(os.getenv("DIFFICULTY_WEIGHT", "1"))
@@ -439,6 +464,10 @@ class TaskPlanner:
             sessions.append((start, end))
             events.append((start, end))
             break_len = long_break if since_break == long_interval - 1 else short_break
+            factor = fatigue_break_factor
+            if factor is None:
+                factor = float(os.getenv("FATIGUE_BREAK_FACTOR", "0"))
+            break_len = round(break_len * (1 + per_day * factor))
             break_end = end + timedelta(minutes=break_len)
             events.append((end, break_end))
             now = self._next_work_time(break_end)
@@ -471,6 +500,8 @@ class TaskPlanner:
             data.priority,
             data.high_energy_start_hour,
             data.high_energy_end_hour,
+            data.fatigue_break_factor,
+            data.energy_curve,
         )
 
         for idx, (s, e) in enumerate(sessions, start=1):

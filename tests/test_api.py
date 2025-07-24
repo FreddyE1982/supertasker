@@ -697,3 +697,54 @@ def test_intelligent_day_order(monkeypatch):
     start_day = datetime.fromisoformat(fs[0]["start_time"]).date()
     assert start_day == TOMORROW + timedelta(days=1)
 
+
+@pytest.mark.env()
+def test_energy_curve(monkeypatch):
+    curve = ",".join("0" if i != 15 else "10" for i in range(24))
+    monkeypatch.setenv("ENERGY_CURVE", curve)
+    data = {
+        "title": "Curve",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+        "energy_curve": [0 if i != 15 else 10 for i in range(24)],
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    start = datetime.fromisoformat(fs[0]["start_time"])
+    assert start.hour == 15
+
+
+@pytest.mark.env(
+    FATIGUE_BREAK_FACTOR="1",
+    SHORT_BREAK_MINUTES="5",
+    LONG_BREAK_MINUTES="15",
+    SESSIONS_BEFORE_LONG_BREAK="4",
+    LUNCH_START_HOUR="0",
+    LUNCH_DURATION_MINUTES="0",
+)
+def test_fatigue_break_factor(monkeypatch):
+    data = {
+        "title": "Fatigue",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 75,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+        "fatigue_break_factor": 1,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 3
+    b1 = datetime.fromisoformat(fs[1]["start_time"]) - datetime.fromisoformat(fs[0]["end_time"])
+    b2 = datetime.fromisoformat(fs[2]["start_time"]) - datetime.fromisoformat(fs[1]["end_time"])
+    assert b1 == timedelta(minutes=5)
+    assert b2 == timedelta(minutes=10)
+

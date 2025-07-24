@@ -64,6 +64,8 @@ class PlanTaskCreate(BaseModel):
     priority: int = 3
     high_energy_start_hour: int | None = None
     high_energy_end_hour: int | None = None
+    fatigue_break_factor: float | None = None
+    energy_curve: list[int] | None = None
 
 
 class TaskUpdate(TaskBase):
