@@ -80,5 +80,7 @@ Send JSON with `title`, `description`, `estimated_difficulty`,
 `estimated_duration_minutes` and `due_date`.
 The service splits the work into 25-minute focus sessions with
 Pomodoro-style breaks and ensures no overlap with existing calendar entries.
-Each focus session also creates a corresponding subtask so large tasks are
-automatically broken into manageable parts.
+Sessions are interlaced with all current appointments and tasks so that work
+fits naturally into the free slots of the day. Each focus session also creates
+a corresponding subtask so large tasks are automatically broken into manageable
+parts.
