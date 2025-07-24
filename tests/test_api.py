@@ -79,6 +79,7 @@ def test_task_crud():
         "end_time": "10:00:00",
         "perceived_difficulty": 2,
         "estimated_difficulty": 3,
+        "priority": 3,
         "worked_on": False,
         "paused": False,
     }
@@ -86,6 +87,7 @@ def test_task_crud():
     assert r.status_code == 200
     task = r.json()
     assert task["title"] == data["title"]
+    assert task["priority"] == data["priority"]
 
     r = requests.get(f"{API_URL}/tasks")
     assert r.status_code == 200
@@ -93,9 +95,11 @@ def test_task_crud():
 
     update = data.copy()
     update["title"] = "Updated Task"
+    update["priority"] = 4
     r = requests.put(f"{API_URL}/tasks/{task['id']}", json=update)
     assert r.status_code == 200
     assert r.json()["title"] == "Updated Task"
+    assert r.json()["priority"] == 4
 
     r = requests.delete(f"{API_URL}/tasks/{task['id']}")
     assert r.status_code == 200
@@ -115,12 +119,14 @@ def test_subtask_crud():
         "end_time": "10:00:00",
         "perceived_difficulty": 2,
         "estimated_difficulty": 3,
+        "priority": 3,
         "worked_on": False,
         "paused": False,
     }
     r = requests.post(f"{API_URL}/tasks", json=task_data)
     assert r.status_code == 200
     task = r.json()
+    assert task["priority"] == 3
 
     sub_data = {"title": "Subtask 1", "completed": False}
     r = requests.post(f"{API_URL}/tasks/{task['id']}/subtasks", json=sub_data)
@@ -157,6 +163,7 @@ def test_focus_session_crud():
         "end_time": "10:00:00",
         "perceived_difficulty": 2,
         "estimated_difficulty": 3,
+        "priority": 3,
         "worked_on": False,
         "paused": False,
     }
