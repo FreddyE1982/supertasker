@@ -228,6 +228,25 @@ class TaskPlanner:
         length = round(base_len * scale)
         return max(min_len, min(max_len, length))
 
+    def _break_lengths(self, session_len: int, difficulty: int) -> tuple[int, int]:
+        """Return (short_break, long_break) with optional intelligent scaling."""
+        short_base = int(os.getenv("SHORT_BREAK_MINUTES", "5"))
+        long_base = int(os.getenv("LONG_BREAK_MINUTES", "15"))
+        if os.getenv("INTELLIGENT_BREAKS", "0") not in {"1", "true", "True"}:
+            return short_base, long_base
+
+        min_short = int(os.getenv("MIN_SHORT_BREAK_MINUTES", str(short_base)))
+        max_short = int(os.getenv("MAX_SHORT_BREAK_MINUTES", str(short_base)))
+        min_long = int(os.getenv("MIN_LONG_BREAK_MINUTES", str(long_base)))
+        max_long = int(os.getenv("MAX_LONG_BREAK_MINUTES", str(long_base)))
+
+        weight = difficulty / 5
+        short = round(short_base * (1 + weight / 2))
+        long = round(long_base * (1 + weight / 2))
+        short = max(min_short, min(max_short, short))
+        long = max(min_long, min(max_long, long))
+        return short, long
+
 
     def _schedule_sessions(
         self,
@@ -240,8 +259,7 @@ class TaskPlanner:
         high_energy_end: int | None = None,
     ) -> list[tuple[datetime, datetime]]:
         session_len = self._session_length(difficulty, priority)
-        short_break = int(os.getenv("SHORT_BREAK_MINUTES", "5"))
-        long_break = int(os.getenv("LONG_BREAK_MINUTES", "15"))
+        short_break, long_break = self._break_lengths(session_len, difficulty)
         long_interval = int(os.getenv("SESSIONS_BEFORE_LONG_BREAK", "4"))
         max_per_day = int(os.getenv("MAX_SESSIONS_PER_DAY", "4"))
         needed = (duration + session_len - 1) // session_len

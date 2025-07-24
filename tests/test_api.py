@@ -639,3 +639,31 @@ def test_dynamic_session_length(monkeypatch):
         end = datetime.fromisoformat(s["end_time"])
         assert (end - start) == timedelta(minutes=expected_len)
 
+
+@pytest.mark.env(
+    INTELLIGENT_BREAKS="1",
+    SHORT_BREAK_MINUTES="5",
+    LONG_BREAK_MINUTES="15",
+    MIN_SHORT_BREAK_MINUTES="5",
+    MAX_SHORT_BREAK_MINUTES="10",
+    MIN_LONG_BREAK_MINUTES="15",
+    MAX_LONG_BREAK_MINUTES="20",
+)
+def test_dynamic_break_length(monkeypatch):
+    data = {
+        "title": "BreakTest",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 60,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(sessions) == 3
+    first_end = datetime.fromisoformat(sessions[0]["end_time"])
+    second_start = datetime.fromisoformat(sessions[1]["start_time"])
+    assert (second_start - first_end) == timedelta(minutes=8)
+

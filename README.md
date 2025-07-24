@@ -94,6 +94,11 @@ and workload distribution. Additional settings allow advanced tuning:
 - ``MAX_SESSION_LENGTH_MINUTES`` – maximum allowed session length when intelligent scaling is enabled (default ``SESSION_LENGTH_MINUTES``)
 - ``SHORT_BREAK_MINUTES`` – short break length (default 5)
 - ``LONG_BREAK_MINUTES`` – long break length (default 15)
+- ``INTELLIGENT_BREAKS`` – scale break lengths based on task difficulty when set to ``1`` or ``true`` (default disabled)
+- ``MIN_SHORT_BREAK_MINUTES`` – minimum short break when intelligent breaks are enabled (default ``SHORT_BREAK_MINUTES``)
+- ``MAX_SHORT_BREAK_MINUTES`` – maximum short break when intelligent breaks are enabled (default ``SHORT_BREAK_MINUTES``)
+- ``MIN_LONG_BREAK_MINUTES`` – minimum long break when intelligent breaks are enabled (default ``LONG_BREAK_MINUTES``)
+- ``MAX_LONG_BREAK_MINUTES`` – maximum long break when intelligent breaks are enabled (default ``LONG_BREAK_MINUTES``)
 - ``SESSIONS_BEFORE_LONG_BREAK`` – number of sessions before a long break
   is inserted (default 4)
 - ``MAX_SESSIONS_PER_DAY`` – maximum sessions per task each day (default 4)
