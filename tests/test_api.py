@@ -497,3 +497,25 @@ def test_planner_respects_work_days(monkeypatch):
     assert all(datetime.fromisoformat(s["start_time"]).weekday() < 5 for s in sessions)
     assert datetime.fromisoformat(sessions[-1]["end_time"]).date() <= weekend
 
+
+@pytest.mark.env(LUNCH_START_HOUR="12", LUNCH_DURATION_MINUTES="60")
+def test_planner_avoids_lunch_break(monkeypatch):
+    data = {
+        "title": "LunchTest",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 200,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    lunch_start = datetime.combine(TODAY, dtime(12, 0))
+    lunch_end = lunch_start + timedelta(minutes=60)
+    for s in sessions:
+        s_start = datetime.fromisoformat(s["start_time"])
+        s_end = datetime.fromisoformat(s["end_time"])
+        assert not (s_start < lunch_end and s_end > lunch_start)
+

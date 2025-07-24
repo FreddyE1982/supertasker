@@ -128,6 +128,10 @@ class TaskPlanner:
 
         start = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
         end = dt.replace(hour=end_hour, minute=0, second=0, microsecond=0)
+        lunch_start = int(os.getenv("LUNCH_START_HOUR", "12"))
+        lunch_dur = int(os.getenv("LUNCH_DURATION_MINUTES", "60"))
+        lunch_s = dt.replace(hour=lunch_start, minute=0, second=0, microsecond=0)
+        lunch_e = lunch_s + timedelta(minutes=lunch_dur)
         if dt < start:
             dt = start
         elif dt >= end:
@@ -135,6 +139,13 @@ class TaskPlanner:
             while dt.weekday() not in work_days:
                 dt = dt + timedelta(days=1)
                 dt = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+        elif lunch_s <= dt < lunch_e:
+            dt = lunch_e
+            if dt >= end:
+                dt = start + timedelta(days=1)
+                while dt.weekday() not in work_days:
+                    dt = dt + timedelta(days=1)
+                    dt = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
         return dt
 
     def _conflicts(
@@ -198,6 +209,17 @@ class TaskPlanner:
         while len(sessions) < needed:
             start = now
             end = start + timedelta(minutes=session_len)
+            lunch_start = int(os.getenv("LUNCH_START_HOUR", "12"))
+            lunch_dur = int(os.getenv("LUNCH_DURATION_MINUTES", "60"))
+            lunch_s = start.replace(hour=lunch_start, minute=0, second=0, microsecond=0)
+            lunch_e = lunch_s + timedelta(minutes=lunch_dur)
+            if start < lunch_e and end > lunch_s:
+                now = self._next_work_time(lunch_e)
+                if now.hour < preferred:
+                    now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
+                if sessions and now.date() != sessions[-1][0].date():
+                    per_day = 0
+                continue
             if end.date() > due:
                 raise HTTPException(status_code=400, detail="Cannot schedule before due date")
             end_hour = int(os.getenv("WORK_END_HOUR", "17"))
