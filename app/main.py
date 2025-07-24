@@ -169,9 +169,20 @@ class TaskPlanner:
         events = self._collect_events()
         sessions = self._schedule_sessions(data.estimated_duration_minutes, data.due_date, events)
 
-        for s, e in sessions:
-            fs = models.FocusSession(task_id=task.id, start_time=s, end_time=e, completed=False)
+        for idx, (s, e) in enumerate(sessions, start=1):
+            fs = models.FocusSession(
+                task_id=task.id,
+                start_time=s,
+                end_time=e,
+                completed=False,
+            )
             self.db.add(fs)
+            sub = models.Subtask(
+                task_id=task.id,
+                title=f"Part {idx}",
+                completed=False,
+            )
+            self.db.add(sub)
         if sessions:
             task.start_date = sessions[0][0].date()
             task.start_time = sessions[0][0].time()

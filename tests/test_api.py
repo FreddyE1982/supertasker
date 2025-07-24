@@ -24,6 +24,8 @@ TOMORROW = TODAY + timedelta(days=1)
 
 @pytest.fixture(autouse=True)
 def start_server():
+    if os.path.exists("appointments.db"):
+        os.remove("appointments.db")
     proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app"])
     assert wait_for_api(f"{API_URL}/appointments")
     yield
@@ -227,6 +229,8 @@ def test_plan_task():
     task = r.json()
     fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
     assert len(fs) == 2
+    subs = requests.get(f"{API_URL}/tasks/{task['id']}/subtasks").json()
+    assert len(subs) == len(fs)
     for s in fs:
         s_start = datetime.fromisoformat(s["start_time"])
         s_end = datetime.fromisoformat(s["end_time"])
