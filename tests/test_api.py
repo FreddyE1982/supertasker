@@ -222,10 +222,11 @@ def test_plan_task():
 
     data = {
         "title": "Big Task",
-        "description": "Work", 
+        "description": "Work",
         "estimated_difficulty": 3,
         "estimated_duration_minutes": 50,
         "due_date": TOMORROW.isoformat(),
+        "priority": 3,
     }
     r = requests.post(f"{API_URL}/tasks/plan", json=data)
     assert r.status_code == 200
@@ -295,6 +296,7 @@ def test_plan_task_interlaced():
         "estimated_difficulty": 2,
         "estimated_duration_minutes": 100,
         "due_date": TOMORROW.isoformat(),
+        "priority": 3,
     }
     r = requests.post(f"{API_URL}/tasks/plan", json=plan)
     assert r.status_code == 200
@@ -335,6 +337,7 @@ def test_planner_respects_work_hours(monkeypatch):
         "estimated_difficulty": 3,
         "estimated_duration_minutes": 50,
         "due_date": TOMORROW.isoformat(),
+        "priority": 3,
     }
     r = requests.post(f"{API_URL}/tasks/plan", json=data)
     assert r.status_code == 200
@@ -363,6 +366,7 @@ def test_planner_considers_difficulty(monkeypatch):
         "estimated_difficulty": 5,
         "estimated_duration_minutes": 25,
         "due_date": TOMORROW.isoformat(),
+        "priority": 3,
     }
     easy = {
         "title": "Easy",
@@ -370,6 +374,7 @@ def test_planner_considers_difficulty(monkeypatch):
         "estimated_difficulty": 1,
         "estimated_duration_minutes": 25,
         "due_date": TOMORROW.isoformat(),
+        "priority": 3,
     }
     r = requests.post(f"{API_URL}/tasks/plan", json=hard)
     assert r.status_code == 200
@@ -388,4 +393,43 @@ def test_planner_considers_difficulty(monkeypatch):
         ).json()[0]["start_time"]
     ).hour
     assert hard_start <= easy_start
+
+
+def test_planner_considers_priority(monkeypatch):
+    monkeypatch.setenv("WORK_START_HOUR", "9")
+    monkeypatch.setenv("WORK_END_HOUR", "17")
+
+    high = {
+        "title": "High",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 5,
+    }
+    low = {
+        "title": "Low",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 1,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=high)
+    assert r.status_code == 200
+    high_task = r.json()
+    r = requests.post(f"{API_URL}/tasks/plan", json=low)
+    assert r.status_code == 200
+    low_task = r.json()
+    high_start = datetime.fromisoformat(
+        requests.get(
+            f"{API_URL}/tasks/{high_task['id']}/focus_sessions"
+        ).json()[0]["start_time"]
+    ).hour
+    low_start = datetime.fromisoformat(
+        requests.get(
+            f"{API_URL}/tasks/{low_task['id']}/focus_sessions"
+        ).json()[0]["start_time"]
+    ).hour
+    assert high_start <= low_start
 
