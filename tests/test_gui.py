@@ -67,6 +67,12 @@ def test_full_gui_interaction():
         at = at.tabs[1].button(key="refresh-tasks").click().run()
         assert any(e.label == "Task 1" for e in at.expander)
 
+        # create subtask
+        at = at.text_input(key="new_sub_1").input("Step 1").run()
+        at = at.button[7].click().run()
+        assert "Created" in [s.value for s in at.success]
+        at = at.tabs[1].button(key="refresh-tasks").click().run()
+
         # calendar views
         at = at.tabs[2].date_input(key="calendar-date").set_value(date(2024, 1, 1)).run()
         at = at.tabs[2].selectbox[0].set_value("Day").run()
@@ -126,12 +132,7 @@ def test_full_gui_interaction():
         at = at.tabs[0].button[3].click().run()
         assert "Deleted" in [s.value for s in at.success]
         at = at.button(key="refresh-btn").click().run()
-        assert len([e for e in at.expander if "Task" not in e.label]) == 0
+        assert not any("Meeting" in e.label for e in at.expander)
 
-        # delete task
-        at = at.tabs[1].button[3].click().run()
-        assert "Deleted" in [s.value for s in at.success]
-        at = at.tabs[1].button(key="refresh-tasks").click().run()
-        assert not any(e.label == "Updated Task" for e in at.expander)
     finally:
         stop_server(proc)

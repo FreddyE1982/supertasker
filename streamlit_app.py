@@ -35,7 +35,11 @@ def refresh_categories():
 def refresh_tasks():
     resp = requests.get(f"{API_URL}/tasks")
     if resp.status_code == 200:
-        st.session_state["tasks"] = resp.json()
+        tasks = resp.json()
+        for t in tasks:
+            sresp = requests.get(f"{API_URL}/tasks/{t['id']}/subtasks")
+            t["subtasks"] = sresp.json() if sresp.status_code == 200 else []
+        st.session_state["tasks"] = tasks
 
 
 refresh()
@@ -225,6 +229,36 @@ with tabs[1]:
                         refresh_tasks()
                     else:
                         st.error("Error updating task")
+            with st.expander("Subtasks"):
+                for sub in task.get("subtasks", []):
+                    with st.form(f'subtask-edit-{task["id"]}-{sub["id"]}'):
+                        stitle = st.text_input("Title", value=sub["title"], key=f'subtitle_{task["id"]}_{sub["id"]}')
+                        scomp = st.checkbox("Completed", value=sub.get("completed", False), key=f'subcomp_{task["id"]}_{sub["id"]}')
+                        if st.form_submit_button("Update"):
+                            data = {"title": stitle, "completed": scomp}
+                            r = requests.put(f"{API_URL}/tasks/{task['id']}/subtasks/{sub['id']}", json=data)
+                            if r.status_code == 200:
+                                st.success("Updated")
+                                refresh_tasks()
+                            else:
+                                st.error("Error updating subtask")
+                    if st.button("Delete", key=f'subdel_{task["id"]}_{sub["id"]}'):
+                        r = requests.delete(f"{API_URL}/tasks/{task['id']}/subtasks/{sub['id']}")
+                        if r.status_code == 200:
+                            st.success("Deleted")
+                            refresh_tasks()
+                        else:
+                            st.error("Error deleting subtask")
+                with st.form(f'subtask-create-{task["id"]}'):
+                    new_sub = st.text_input("Title", key=f'new_sub_{task["id"]}')
+                    if st.form_submit_button("Add Subtask"):
+                        data = {"title": new_sub, "completed": False}
+                        r = requests.post(f"{API_URL}/tasks/{task['id']}/subtasks", json=data)
+                        if r.status_code == 200:
+                            st.success("Created")
+                            refresh_tasks()
+                        else:
+                            st.error("Error creating subtask")
             if st.button("Delete", key=f'task_del_{task["id"]}'):
                 resp = requests.delete(f"{API_URL}/tasks/{task['id']}")
                 if resp.status_code == 200:
