@@ -93,6 +93,9 @@ and workload distribution. Additional settings allow advanced tuning:
 - ``LONG_BREAK_MINUTES`` – long break length (default 15)
 - ``SESSIONS_BEFORE_LONG_BREAK`` – number of sessions before a long break
   is inserted (default 4)
+- ``MAX_SESSIONS_PER_DAY`` – maximum sessions per task each day (default 4)
+- ``DAILY_SESSION_LIMIT`` – maximum sessions from all tasks on a single day
+  (default unlimited)
 - ``WORK_DAYS`` – comma-separated list of weekday numbers (0=Monday) that are
   considered working days. By default all days are allowed.
 - ``LUNCH_START_HOUR`` – hour when a daily lunch break begins (default 12)
