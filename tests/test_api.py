@@ -433,3 +433,24 @@ def test_planner_considers_priority(monkeypatch):
     ).hour
     assert high_start <= low_start
 
+
+def test_planner_spreads_sessions(monkeypatch):
+    due = TODAY + timedelta(days=3)
+    plan = {
+        "title": "Spread",
+        "description": "",
+        "estimated_difficulty": 2,
+        "estimated_duration_minutes": 100,
+        "due_date": due.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=plan)
+    assert r.status_code == 200
+    task = r.json()
+    sessions = requests.get(
+        f"{API_URL}/tasks/{task['id']}/focus_sessions"
+    ).json()
+    days = {datetime.fromisoformat(s["start_time"]).date() for s in sessions}
+    assert len(days) >= 2
+    assert max(days) <= due
+
