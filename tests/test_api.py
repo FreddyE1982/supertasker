@@ -552,3 +552,22 @@ def test_planner_importance_affects_start_day(monkeypatch):
     ).date()
     assert high_day <= low_day
 
+
+@pytest.mark.env(LOW_ENERGY_START_HOUR="14", LOW_ENERGY_END_HOUR="16")
+def test_planner_avoids_low_energy(monkeypatch):
+    data = {
+        "title": "Slump",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 50,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    for s in sessions:
+        start = datetime.fromisoformat(s["start_time"])
+        assert not (14 <= start.hour < 16)
+

@@ -178,6 +178,16 @@ class TaskPlanner:
         ) / total_w
         offset = max(0, round(5 - weight))
         return min(end_hour - 1, start_hour + offset)
+    def _avoid_low_energy(self, dt: datetime, difficulty: int) -> datetime:
+        """Shift start time out of the low energy window for hard tasks."""
+        if difficulty < 4:
+            return dt
+        le_start = int(os.getenv("LOW_ENERGY_START_HOUR", "14"))
+        le_end = int(os.getenv("LOW_ENERGY_END_HOUR", "16"))
+        if le_start <= dt.hour < le_end:
+            return dt.replace(hour=le_end, minute=0, second=0, microsecond=0)
+        return dt
+
 
     def _schedule_sessions(
         self,
@@ -231,7 +241,10 @@ class TaskPlanner:
         since_break = 0
         per_day = 0
         while len(sessions) < needed:
-            start = now
+            start = self._avoid_low_energy(now, difficulty)
+            if start != now:
+                now = self._next_work_time(start)
+                start = now
             end = start + timedelta(minutes=session_len)
             lunch_start = int(os.getenv("LUNCH_START_HOUR", "12"))
             lunch_dur = int(os.getenv("LUNCH_DURATION_MINUTES", "60"))
