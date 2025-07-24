@@ -103,6 +103,8 @@ and workload distribution. Additional settings allow advanced tuning:
 
 - ``LOW_ENERGY_START_HOUR`` – start of the low energy period to avoid for difficult tasks (default 14)
 - ``LOW_ENERGY_END_HOUR`` – end hour of the low energy period (default 16)
+- ``HIGH_ENERGY_START_HOUR`` – preferred start hour for important tasks (default 9)
+- ``HIGH_ENERGY_END_HOUR`` – end of the preferred high energy window (default 12)
 
 More difficult or high priority tasks are placed earlier in the day while
 easier ones are scheduled later, spreading sessions across days when needed for
@@ -115,3 +117,4 @@ The lunch break settings ensure planning pauses between ``LUNCH_START_HOUR``
 and ``LUNCH_START_HOUR`` plus ``LUNCH_DURATION_MINUTES`` so focus sessions never
 overlap with this daily break.
 Hard tasks are also moved out of the ``LOW_ENERGY_START_HOUR`` to ``LOW_ENERGY_END_HOUR`` window to keep sessions productive.
+Important tasks are additionally pulled into the ``HIGH_ENERGY_START_HOUR`` to ``HIGH_ENERGY_END_HOUR`` window whenever possible so the most challenging work occurs during peak focus times.

@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 from datetime import datetime, date, time as dtime, timedelta
 import calendar
+import os
 from streamlit_calendar import calendar as st_calendar
 
 API_URL = "http://localhost:8000"
@@ -168,6 +169,22 @@ with tabs[1]:
         p_priority = st.number_input("Priority", value=3, min_value=1, max_value=5, step=1, key="plan-priority")
         p_duration = st.number_input("Estimated Duration Minutes", min_value=1, step=1, key="plan-dur")
         p_due = st.date_input("Due Date", key="plan-due")
+        he_start = st.number_input(
+            "High Energy Start Hour",
+            min_value=0,
+            max_value=23,
+            value=int(os.getenv("HIGH_ENERGY_START_HOUR", "9")),
+            step=1,
+            key="plan-he-start",
+        )
+        he_end = st.number_input(
+            "High Energy End Hour",
+            min_value=0,
+            max_value=23,
+            value=int(os.getenv("HIGH_ENERGY_END_HOUR", "12")),
+            step=1,
+            key="plan-he-end",
+        )
         if st.form_submit_button("Plan"):
             data = {
                 "title": p_title,
@@ -176,6 +193,8 @@ with tabs[1]:
                 "estimated_duration_minutes": int(p_duration),
                 "due_date": p_due.isoformat(),
                 "priority": int(p_priority),
+                "high_energy_start_hour": int(he_start),
+                "high_energy_end_hour": int(he_end),
             }
             r = requests.post(f"{API_URL}/tasks/plan", json=data)
             if r.status_code == 200:
