@@ -113,6 +113,14 @@ class TaskPlanner:
         events.sort(key=lambda e: e[0])
         return events
 
+    def _session_counts(self) -> dict[date, int]:
+        """Return the number of focus sessions already scheduled per day."""
+        counts: dict[date, int] = {}
+        for fs in self.db.query(models.FocusSession).all():
+            d = fs.start_time.date()
+            counts[d] = counts.get(d, 0) + 1
+        return counts
+
     def _next_work_time(self, dt: datetime) -> datetime:
         start_hour = int(os.getenv("WORK_START_HOUR", "9"))
         end_hour = int(os.getenv("WORK_END_HOUR", "17"))
@@ -237,6 +245,9 @@ class TaskPlanner:
             else int(os.getenv("HIGH_ENERGY_END_HOUR", "12"))
         )
 
+        daily_limit = int(os.getenv("DAILY_SESSION_LIMIT", "0"))
+        daily_counts = self._session_counts()
+
         now = self._next_work_time(datetime.utcnow())
         urgency = self._urgency(due)
         preferred = self._preferred_start_hour(difficulty, priority, urgency)
@@ -274,6 +285,16 @@ class TaskPlanner:
         since_break = 0
         per_day = 0
         while len(sessions) < needed:
+            if daily_limit and daily_counts.get(now.date(), 0) >= daily_limit:
+                start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+                now = self._next_work_time(
+                    datetime.combine(now.date() + timedelta(days=1), time(hour=start_hour))
+                )
+                if now.hour < preferred:
+                    now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
+                if sessions and now.date() != sessions[-1][0].date():
+                    per_day = 0
+                continue
             start = self._avoid_low_energy(now, difficulty)
             start = self._prefer_high_energy(
                 start, difficulty, priority, session_len, he_start, he_end
@@ -338,6 +359,7 @@ class TaskPlanner:
                 now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
             since_break = (since_break + 1) % long_interval
             per_day += 1
+            daily_counts[start.date()] = daily_counts.get(start.date(), 0) + 1
         return sessions
 
     def plan(self, data: schemas.PlanTaskCreate) -> models.Task:
