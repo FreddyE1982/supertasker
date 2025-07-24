@@ -154,3 +154,11 @@ Aber: Keine bestehende Regel darf je überschrieben oder abgeschwächt werden.
 ❌ Kein „Quickfix“ oder „Workaround“ statt Korrektur
 
 ❌ Kein Auslassen von Tabs bei GUI-Tests
+
+## TODO.md ##
+
+Before the agent does ANYTHING it checks if a TODO.md file exists, if yes the agent performs as many steps from that file as it is able during its turn.
+Executing steps in TODO.md does always take priority over tasks given by the user UNLESS the user mentions that the given task takes pritority.
+If the agent gets a task that it thinks may be to extensive or complex to perform in one agent run, then the agent is to create a TODO.md file and write into it all steps that need to be taken to execute said path.
+Whenever the agent finishes a step from the TODO.md, it has to mark that step as "complete" in the TODO.md
+If there are no more steps left in the TODO.md, the agent deletes the file. TODO.md MUST be included in commit if present.
