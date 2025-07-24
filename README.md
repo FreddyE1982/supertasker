@@ -133,3 +133,4 @@ and ``LUNCH_START_HOUR`` plus ``LUNCH_DURATION_MINUTES`` so focus sessions never
 overlap with this daily break.
 Hard tasks are also moved out of the ``LOW_ENERGY_START_HOUR`` to ``LOW_ENERGY_END_HOUR`` window to keep sessions productive.
 Important tasks are additionally pulled into the ``HIGH_ENERGY_START_HOUR`` to ``HIGH_ENERGY_END_HOUR`` window whenever possible so the most challenging work occurs during peak focus times.
+Providing an ``ENERGY_CURVE`` lets the planner map task importance to these energy levels so that highly important tasks start at times with higher energy values while less critical ones are placed into lower energy periods.
