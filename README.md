@@ -89,6 +89,9 @@ variables as well as ``MAX_SESSIONS_PER_DAY`` to adapt to custom working hours
 and workload distribution. Additional settings allow advanced tuning:
 
 - ``SESSION_LENGTH_MINUTES`` – duration of each focus session (default 25)
+- ``INTELLIGENT_SESSION_LENGTH`` – scale session length based on difficulty and priority when set to ``1`` or ``true`` (default disabled)
+- ``MIN_SESSION_LENGTH_MINUTES`` – minimum allowed session length when intelligent scaling is enabled (default ``SESSION_LENGTH_MINUTES``)
+- ``MAX_SESSION_LENGTH_MINUTES`` – maximum allowed session length when intelligent scaling is enabled (default ``SESSION_LENGTH_MINUTES``)
 - ``SHORT_BREAK_MINUTES`` – short break length (default 5)
 - ``LONG_BREAK_MINUTES`` – long break length (default 15)
 - ``SESSIONS_BEFORE_LONG_BREAK`` – number of sessions before a long break

@@ -3,6 +3,7 @@ import time
 import requests
 import os
 import sys
+import math
 from datetime import date, timedelta, datetime, time as dtime
 
 import pytest
@@ -611,4 +612,30 @@ def test_planner_daily_session_limit(monkeypatch):
     assert len(sessions) == 2
     days = [datetime.fromisoformat(s["start_time"]).date() for s in sessions]
     assert len(set(days)) == 2
+
+
+@pytest.mark.env(
+    INTELLIGENT_SESSION_LENGTH="1",
+    MIN_SESSION_LENGTH_MINUTES="20",
+    MAX_SESSION_LENGTH_MINUTES="60",
+)
+def test_dynamic_session_length(monkeypatch):
+    data = {
+        "title": "Scaled",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 50,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 5,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    expected_len = round(25 * (1 + ((5 + 5) / 2 - 3) / 4))
+    assert len(sessions) == math.ceil(50 / expected_len)
+    for s in sessions:
+        start = datetime.fromisoformat(s["start_time"])
+        end = datetime.fromisoformat(s["end_time"])
+        assert (end - start) == timedelta(minutes=expected_len)
 
