@@ -237,14 +237,23 @@ class TaskPlanner:
             dt = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0) + timedelta(days=1)
         return dt
 
-    def _session_length(self, difficulty: int, priority: int) -> int:
-        """Calculate the focus session length with optional intelligent scaling."""
+    def _session_length(self, difficulty: int, priority: int, urgency: int) -> int:
+        """Calculate the focus session length with optional intelligent scaling.
+
+        The length now also considers task urgency for smarter scheduling.
+        """
         base_len = int(os.getenv("SESSION_LENGTH_MINUTES", "25"))
         if os.getenv("INTELLIGENT_SESSION_LENGTH", "0") not in {"1", "true", "True"}:
             return base_len
         min_len = int(os.getenv("MIN_SESSION_LENGTH_MINUTES", str(base_len)))
         max_len = int(os.getenv("MAX_SESSION_LENGTH_MINUTES", str(base_len)))
-        weight = (difficulty + priority) / 2
+        diff_w = float(os.getenv("DIFFICULTY_WEIGHT", "1"))
+        prio_w = float(os.getenv("PRIORITY_WEIGHT", "1"))
+        urg_w = float(os.getenv("URGENCY_WEIGHT", "1"))
+        total_w = diff_w + prio_w + urg_w
+        weight = (
+            difficulty * diff_w + priority * prio_w + urgency * urg_w
+        ) / total_w
         scale = 1 + (weight - 3) / 4
         length = round(base_len * scale)
         return max(min_len, min(max_len, length))
@@ -325,7 +334,8 @@ class TaskPlanner:
         fatigue_break_factor: float | None = None,
         energy_curve: list[int] | None = None,
     ) -> list[tuple[datetime, datetime]]:
-        session_len = self._session_length(difficulty, priority)
+        urgency = self._urgency(due)
+        session_len = self._session_length(difficulty, priority, urgency)
         short_break, long_break = self._break_lengths(session_len, difficulty)
         long_interval = int(os.getenv("SESSIONS_BEFORE_LONG_BREAK", "4"))
         max_per_day = int(os.getenv("MAX_SESSIONS_PER_DAY", "4"))
@@ -346,7 +356,6 @@ class TaskPlanner:
         daily_counts = self._session_counts()
 
         now = self._next_work_time(datetime.utcnow())
-        urgency = self._urgency(due)
         preferred = self._preferred_start_hour(
             difficulty, priority, urgency, energy_curve
         )

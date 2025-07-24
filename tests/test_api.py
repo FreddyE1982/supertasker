@@ -632,7 +632,9 @@ def test_dynamic_session_length(monkeypatch):
     assert r.status_code == 200
     task = r.json()
     sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
-    expected_len = round(25 * (1 + ((5 + 5) / 2 - 3) / 4))
+    urgency = 4
+    weight = (5 + 5 + urgency) / 3
+    expected_len = round(25 * (1 + (weight - 3) / 4))
     assert len(sessions) == math.ceil(50 / expected_len)
     for s in sessions:
         start = datetime.fromisoformat(s["start_time"])
