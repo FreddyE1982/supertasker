@@ -1,4 +1,5 @@
 from datetime import datetime, date, time as dtime, timedelta
+import os
 from fastapi import FastAPI, HTTPException, Depends
 from sqlalchemy.orm import Session
 
@@ -80,7 +81,13 @@ class FocusSessionService:
 
 
 class TaskPlanner:
-    """Automatically schedule tasks into available calendar slots."""
+    """Automatically schedule tasks into available calendar slots.
+
+    The planner respects configurable working hours via the ``WORK_START_HOUR``
+    and ``WORK_END_HOUR`` environment variables. Sessions are scheduled earlier
+    in the day for difficult tasks and later for easier ones to make planning
+    more intelligent while still preventing overlaps with existing events.
+    """
 
     def __init__(self, db: Session):
         self.db = db
@@ -106,8 +113,10 @@ class TaskPlanner:
         return events
 
     def _next_work_time(self, dt: datetime) -> datetime:
-        start = dt.replace(hour=9, minute=0, second=0, microsecond=0)
-        end = dt.replace(hour=17, minute=0, second=0, microsecond=0)
+        start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+        end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+        start = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
+        end = dt.replace(hour=end_hour, minute=0, second=0, microsecond=0)
         if dt < start:
             return start
         if dt >= end:
@@ -122,8 +131,18 @@ class TaskPlanner:
                 return True
         return False
 
+    def _preferred_start_hour(self, difficulty: int) -> int:
+        start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+        end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+        offset = max(0, 5 - difficulty)
+        return min(end_hour - 1, start_hour + offset)
+
     def _schedule_sessions(
-        self, duration: int, due: date, events: list[tuple[datetime, datetime]]
+        self,
+        duration: int,
+        due: date,
+        events: list[tuple[datetime, datetime]],
+        difficulty: int,
     ) -> list[tuple[datetime, datetime]]:
         session_len = 25
         short_break = 5
@@ -131,6 +150,9 @@ class TaskPlanner:
         needed = (duration + session_len - 1) // session_len
 
         now = self._next_work_time(datetime.utcnow())
+        preferred = self._preferred_start_hour(difficulty)
+        if now.hour < preferred:
+            now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
         sessions: list[tuple[datetime, datetime]] = []
         since_break = 0
         while len(sessions) < needed:
@@ -138,12 +160,17 @@ class TaskPlanner:
             end = start + timedelta(minutes=session_len)
             if end.date() > due:
                 raise HTTPException(status_code=400, detail="Cannot schedule before due date")
-            if end.hour > 17 or (end.hour == 17 and end.minute > 0):
+            end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+            if end.hour > end_hour or (end.hour == end_hour and end.minute > 0):
                 now = self._next_work_time(start + timedelta(days=1))
+                if now.hour < preferred:
+                    now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
                 continue
             if self._conflicts(start, end, events):
                 overlap_end = max(e for s, e in events if start < e and end > s)
                 now = self._next_work_time(overlap_end)
+                if now.hour < preferred:
+                    now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
                 continue
             sessions.append((start, end))
             events.append((start, end))
@@ -167,7 +194,12 @@ class TaskPlanner:
         self.db.refresh(task)
 
         events = self._collect_events()
-        sessions = self._schedule_sessions(data.estimated_duration_minutes, data.due_date, events)
+        sessions = self._schedule_sessions(
+            data.estimated_duration_minutes,
+            data.due_date,
+            events,
+            data.estimated_difficulty,
+        )
 
         for idx, (s, e) in enumerate(sessions, start=1):
             fs = models.FocusSession(
