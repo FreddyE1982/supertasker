@@ -216,6 +216,18 @@ class TaskPlanner:
             dt = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0) + timedelta(days=1)
         return dt
 
+    def _session_length(self, difficulty: int, priority: int) -> int:
+        """Calculate the focus session length with optional intelligent scaling."""
+        base_len = int(os.getenv("SESSION_LENGTH_MINUTES", "25"))
+        if os.getenv("INTELLIGENT_SESSION_LENGTH", "0") not in {"1", "true", "True"}:
+            return base_len
+        min_len = int(os.getenv("MIN_SESSION_LENGTH_MINUTES", str(base_len)))
+        max_len = int(os.getenv("MAX_SESSION_LENGTH_MINUTES", str(base_len)))
+        weight = (difficulty + priority) / 2
+        scale = 1 + (weight - 3) / 4
+        length = round(base_len * scale)
+        return max(min_len, min(max_len, length))
+
 
     def _schedule_sessions(
         self,
@@ -227,7 +239,7 @@ class TaskPlanner:
         high_energy_start: int | None = None,
         high_energy_end: int | None = None,
     ) -> list[tuple[datetime, datetime]]:
-        session_len = int(os.getenv("SESSION_LENGTH_MINUTES", "25"))
+        session_len = self._session_length(difficulty, priority)
         short_break = int(os.getenv("SHORT_BREAK_MINUTES", "5"))
         long_break = int(os.getenv("LONG_BREAK_MINUTES", "15"))
         long_interval = int(os.getenv("SESSIONS_BEFORE_LONG_BREAK", "4"))
