@@ -23,10 +23,13 @@ TODAY = date.today()
 TOMORROW = TODAY + timedelta(days=1)
 
 @pytest.fixture(autouse=True)
-def start_server():
+def start_server(monkeypatch):
     if os.path.exists("appointments.db"):
         os.remove("appointments.db")
-    proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app"])
+    env = os.environ.copy()
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "app.main:app"], env=env
+    )
     assert wait_for_api(f"{API_URL}/appointments")
     yield
     proc.terminate()
@@ -320,4 +323,69 @@ def test_plan_task_interlaced():
     for i in range(1, len(sessions)):
         assert sessions[i][0] - sessions[i - 1][1] >= timedelta(minutes=5)
     assert sessions[-1][1].date() <= TOMORROW
+
+
+def test_planner_respects_work_hours(monkeypatch):
+    monkeypatch.setenv("WORK_START_HOUR", "8")
+    monkeypatch.setenv("WORK_END_HOUR", "16")
+
+    data = {
+        "title": "Early Task",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 50,
+        "due_date": TOMORROW.isoformat(),
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert all(
+        8 <= datetime.fromisoformat(s["start_time"]).hour < 16 for s in fs
+    )
+    assert all(
+        8 < datetime.fromisoformat(s["end_time"]).hour <= 16
+        or (
+            datetime.fromisoformat(s["end_time"]).hour == 16
+            and datetime.fromisoformat(s["end_time"]).minute == 0
+        )
+        for s in fs
+    )
+
+
+def test_planner_considers_difficulty(monkeypatch):
+    monkeypatch.setenv("WORK_START_HOUR", "9")
+    monkeypatch.setenv("WORK_END_HOUR", "17")
+
+    hard = {
+        "title": "Hard",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+    }
+    easy = {
+        "title": "Easy",
+        "description": "",
+        "estimated_difficulty": 1,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=hard)
+    assert r.status_code == 200
+    hard_task = r.json()
+    r = requests.post(f"{API_URL}/tasks/plan", json=easy)
+    assert r.status_code == 200
+    easy_task = r.json()
+    hard_start = datetime.fromisoformat(
+        requests.get(
+            f"{API_URL}/tasks/{hard_task['id']}/focus_sessions"
+        ).json()[0]["start_time"]
+    ).hour
+    easy_start = datetime.fromisoformat(
+        requests.get(
+            f"{API_URL}/tasks/{easy_task['id']}/focus_sessions"
+        ).json()[0]["start_time"]
+    ).hour
+    assert hard_start <= easy_start
 

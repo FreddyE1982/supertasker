@@ -84,3 +84,7 @@ Sessions are interlaced with all current appointments and tasks so that work
 fits naturally into the free slots of the day. Each focus session also creates
 a corresponding subtask so large tasks are automatically broken into manageable
 parts.
+The planner honours the ``WORK_START_HOUR`` and ``WORK_END_HOUR`` environment
+variables to adapt to custom working hours. More difficult tasks are placed
+earlier in the day while easier ones are scheduled later, making the automated
+planning smarter and more personalised.
