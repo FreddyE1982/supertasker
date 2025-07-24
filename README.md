@@ -88,4 +88,7 @@ The planner honours the ``WORK_START_HOUR`` and ``WORK_END_HOUR`` environment
 variables as well as ``MAX_SESSIONS_PER_DAY`` to adapt to custom working hours
 and workload distribution. More difficult or high priority tasks are placed
 earlier in the day while easier ones are scheduled later, spreading sessions
-across days when needed for smarter and more personalised planning.
+across days when needed for smarter and more personalised planning. Session
+times also consider urgency based on how soon a task is due and the planner
+balances the number of focus sessions per day so that work is spread evenly
+until the deadline.

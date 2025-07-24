@@ -132,10 +132,18 @@ class TaskPlanner:
                 return True
         return False
 
-    def _preferred_start_hour(self, difficulty: int, priority: int) -> int:
+    def _urgency(self, due: date) -> int:
+        """Return an urgency score from 1-5 based on days left until ``due``."""
+        days_left = (due - datetime.utcnow().date()).days
+        if days_left <= 0:
+            return 5
+        return max(1, 5 - days_left)
+
+    def _preferred_start_hour(self, difficulty: int, priority: int, urgency: int) -> int:
         start_hour = int(os.getenv("WORK_START_HOUR", "9"))
         end_hour = int(os.getenv("WORK_END_HOUR", "17"))
-        offset = max(0, 5 - difficulty - (priority - 3))
+        weight = (difficulty + priority + urgency) / 3
+        offset = max(0, round(5 - weight))
         return min(end_hour - 1, start_hour + offset)
 
     def _schedule_sessions(
@@ -153,8 +161,11 @@ class TaskPlanner:
         needed = (duration + session_len - 1) // session_len
 
         now = self._next_work_time(datetime.utcnow())
-        preferred = self._preferred_start_hour(difficulty, priority)
-        days_needed = math.ceil(needed / max_per_day)
+        urgency = self._urgency(due)
+        preferred = self._preferred_start_hour(difficulty, priority, urgency)
+        days_left = max(1, (due - now.date()).days + 1)
+        target_per_day = min(max_per_day, max(1, math.ceil(needed / days_left)))
+        days_needed = math.ceil(needed / target_per_day)
         start_day = max(now.date(), due - timedelta(days=days_needed - 1))
         now = self._next_work_time(datetime.combine(start_day, time(hour=preferred)))
         if now.hour < preferred:
@@ -182,15 +193,24 @@ class TaskPlanner:
                 if sessions and now.date() != sessions[-1][0].date():
                     per_day = 0
                 continue
-            if per_day >= max_per_day:
-                start_hour = int(os.getenv("WORK_START_HOUR", "9"))
-                now = self._next_work_time(
-                    datetime.combine(start.date() + timedelta(days=1), time(hour=start_hour))
-                )
-                if now.hour < preferred:
-                    now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
-                per_day = 0
-                continue
+            if per_day >= target_per_day:
+                remaining_days = max(1, (due - start.date()).days + 1)
+                if remaining_days == 1:
+                    target_per_day = max_per_day
+                else:
+                    start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+                    now = self._next_work_time(
+                        datetime.combine(start.date() + timedelta(days=1), time(hour=start_hour))
+                    )
+                    if now.hour < preferred:
+                        now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
+                    per_day = 0
+                    remaining_days = max(1, (due - now.date()).days + 1)
+                    target_per_day = min(
+                        max_per_day,
+                        max(1, math.ceil((needed - len(sessions)) / remaining_days)),
+                    )
+                    continue
             sessions.append((start, end))
             events.append((start, end))
             break_len = long_break if since_break == 3 else short_break
