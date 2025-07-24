@@ -192,11 +192,6 @@ class TaskPlanner:
                 except ValueError:
                     energy_curve = None
 
-        if energy_curve and len(energy_curve) == 24:
-            hours = range(start_hour, end_hour)
-            best = max(hours, key=lambda h: energy_curve[h])
-            return best
-
         diff_w = float(os.getenv("DIFFICULTY_WEIGHT", "1"))
         prio_w = float(os.getenv("PRIORITY_WEIGHT", "1"))
         urg_w = float(os.getenv("URGENCY_WEIGHT", "1"))
@@ -205,6 +200,14 @@ class TaskPlanner:
         weight = (
             difficulty * diff_w + priority * prio_w + urgency * urg_w
         ) / total_w
+
+        if energy_curve and len(energy_curve) == 24:
+            hours = range(start_hour, end_hour)
+            importance = weight
+            target = (importance / 5) * max(energy_curve[h] for h in hours)
+            best = min(hours, key=lambda h: (energy_curve[h] - target) ** 2)
+            return best
+
         offset = max(0, round(5 - weight))
         return min(end_hour - 1, start_hour + offset)
     def _avoid_low_energy(self, dt: datetime, difficulty: int) -> datetime:

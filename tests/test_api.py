@@ -722,6 +722,56 @@ def test_energy_curve(monkeypatch):
     assert start.hour == 15
 
 
+curve_imp = [1] * 24
+curve_imp[9] = 10
+curve_imp[17] = 2
+
+@pytest.mark.env(
+    WORK_START_HOUR="8",
+    WORK_END_HOUR="18",
+    ENERGY_CURVE=",".join(str(x) for x in curve_imp),
+)
+def test_energy_curve_importance():
+
+    high = {
+        "title": "HighImpCurve",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 5,
+    }
+    low = {
+        "title": "LowImpCurve",
+        "description": "",
+        "estimated_difficulty": 1,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 1,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=high)
+    assert r.status_code == 200
+    high_task = r.json()
+    r = requests.post(f"{API_URL}/tasks/plan", json=low)
+    assert r.status_code == 200
+    low_task = r.json()
+
+    high_hour = datetime.fromisoformat(
+        requests.get(
+            f"{API_URL}/tasks/{high_task['id']}/focus_sessions"
+        ).json()[0]["start_time"]
+    ).hour
+    low_hour = datetime.fromisoformat(
+        requests.get(
+            f"{API_URL}/tasks/{low_task['id']}/focus_sessions"
+        ).json()[0]["start_time"]
+    ).hour
+
+    assert high_hour == 9
+    assert low_hour == 17
+    assert high_hour < low_hour
+
+
 @pytest.mark.env(
     FATIGUE_BREAK_FACTOR="1",
     SHORT_BREAK_MINUTES="5",
