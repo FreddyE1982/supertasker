@@ -113,6 +113,19 @@ class TaskPlanner:
         events.sort(key=lambda e: e[0])
         return events
 
+    def _category_hours(self, category_id: int | None) -> tuple[int | None, int | None]:
+        """Return preferred (start_hour, end_hour) for the category if defined."""
+        if category_id is None:
+            return None, None
+        cat = (
+            self.db.query(models.Category)
+            .filter(models.Category.id == category_id)
+            .first()
+        )
+        if not cat:
+            return None, None
+        return cat.preferred_start_hour, cat.preferred_end_hour
+
     def _session_counts(self) -> dict[date, int]:
         """Return the number of focus sessions already scheduled per day."""
         counts: dict[date, int] = {}
@@ -154,9 +167,22 @@ class TaskPlanner:
             loads[d] = loads.get(d, 0) + diff_val * length
         return loads
 
-    def _next_work_time(self, dt: datetime) -> datetime:
-        start_hour = int(os.getenv("WORK_START_HOUR", "9"))
-        end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+    def _next_work_time(
+        self,
+        dt: datetime,
+        start_hour: int | None = None,
+        end_hour: int | None = None,
+    ) -> datetime:
+        start_hour = (
+            int(os.getenv("WORK_START_HOUR", "9"))
+            if start_hour is None
+            else start_hour
+        )
+        end_hour = (
+            int(os.getenv("WORK_END_HOUR", "17"))
+            if end_hour is None
+            else end_hour
+        )
         work_days_env = os.getenv("WORK_DAYS")
         if work_days_env:
             work_days = {int(d) for d in work_days_env.split(",")}
@@ -215,10 +241,18 @@ class TaskPlanner:
         priority: int,
         urgency: int,
         energy_curve: list[int] | None = None,
+        cat_start: int | None = None,
+        cat_end: int | None = None,
     ) -> int:
         """Return the preferred start hour based on weighted importance and optional energy curve."""
         start_hour = int(os.getenv("WORK_START_HOUR", "9"))
         end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+        if cat_start is not None:
+            start_hour = max(start_hour, cat_start)
+        if cat_end is not None:
+            end_hour = min(end_hour, cat_end)
+        if end_hour <= start_hour:
+            end_hour = start_hour + 1
 
         if energy_curve is None:
             curve_env = os.getenv("ENERGY_CURVE")
@@ -285,6 +319,8 @@ class TaskPlanner:
         events: list[tuple[datetime, datetime]],
         energy_curve: list[int] | None = None,
         buffer_minutes: int = 0,
+        start_hour: int | None = None,
+        end_hour: int | None = None,
     ) -> datetime:
         """Return the best available start time on ``start``'s day based on the
         highest energy level within working hours."""
@@ -302,8 +338,10 @@ class TaskPlanner:
                     energy_curve = None
 
         step = int(os.getenv("SLOT_STEP_MINUTES", "15"))
-        start_hour = int(os.getenv("WORK_START_HOUR", "9"))
-        end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+        if start_hour is None:
+            start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+        if end_hour is None:
+            end_hour = int(os.getenv("WORK_END_HOUR", "17"))
 
         aligned = start.replace(second=0, microsecond=0)
         day_start = aligned.replace(hour=start_hour, minute=0)
@@ -415,6 +453,22 @@ class TaskPlanner:
             and candidate.date() == start.date()
         ):
             return candidate
+        return start
+
+    def _align_category_window(
+        self,
+        start: datetime,
+        session_len: int,
+        cat_start: int | None,
+        cat_end: int | None,
+    ) -> datetime:
+        """Ensure session starts within the preferred category time window."""
+        if cat_start is not None and start.hour < cat_start:
+            start = start.replace(hour=cat_start, minute=0, second=0, microsecond=0)
+        if cat_end is not None and start.hour + math.ceil(session_len / 60) > cat_end:
+            next_day = start.date() + timedelta(days=1)
+            hour = cat_start if cat_start is not None else int(os.getenv("WORK_START_HOUR", "9"))
+            start = datetime.combine(next_day, time(hour=hour))
         return start
 
     def _session_length(self, difficulty: int, priority: int, urgency: int) -> int:
@@ -669,6 +723,8 @@ class TaskPlanner:
         max_per_day = int(os.getenv("MAX_SESSIONS_PER_DAY", "4"))
         needed = (duration + session_len - 1) // session_len
 
+        cat_start, cat_end = self._category_hours(category_id)
+
         he_start = (
             high_energy_start
             if high_energy_start is not None
@@ -679,6 +735,11 @@ class TaskPlanner:
             if high_energy_end is not None
             else int(os.getenv("HIGH_ENERGY_END_HOUR", "12"))
         )
+
+        if cat_start is not None:
+            he_start = max(he_start, cat_start)
+        if cat_end is not None:
+            he_end = min(he_end, cat_end)
 
         base_buffer = (
             transition_buffer
@@ -699,9 +760,9 @@ class TaskPlanner:
         energy_limit = int(os.getenv("DAILY_ENERGY_LIMIT", "0"))
         energy_loads = self._energy_loads()
 
-        now = self._next_work_time(datetime.utcnow())
+        now = self._next_work_time(datetime.utcnow(), cat_start, cat_end)
         preferred = self._preferred_start_hour(
-            difficulty, priority, urgency, energy_curve
+            difficulty, priority, urgency, energy_curve, cat_start, cat_end
         )
         days_left = max(1, (due - now.date()).days + 1)
 
@@ -750,6 +811,7 @@ class TaskPlanner:
                 block = self._largest_free_block(day, events, buffer_minutes)
                 if block and (block[1] - block[0]).total_seconds() // 60 >= total_needed:
                     now = max(block[0], datetime.combine(day, time(hour=preferred)))
+                    now = self._align_category_window(now, session_len, cat_start, cat_end)
                     sessions: list[tuple[datetime, datetime]] = []
                     since_break = 0
                     for _ in range(needed):
@@ -770,7 +832,11 @@ class TaskPlanner:
                         since_break = (since_break + 1) % long_interval
                     return sessions
                 day += timedelta(days=1)
-        now = self._next_work_time(datetime.combine(start_day, time(hour=preferred)))
+        now = self._next_work_time(
+            datetime.combine(start_day, time(hour=preferred)),
+            cat_start,
+            cat_end,
+        )
         if now.hour < preferred:
             now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
         free_today = self._free_minutes(now.date(), events, buffer_minutes)
@@ -793,7 +859,9 @@ class TaskPlanner:
                     buffer_minutes,
                 )
                 now = self._next_work_time(
-                    datetime.combine(next_day, time(hour=start_hour))
+                    datetime.combine(next_day, time(hour=start_hour)),
+                    cat_start,
+                    cat_end,
                 )
                 if now.hour < preferred:
                     now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
@@ -812,7 +880,9 @@ class TaskPlanner:
                     buffer_minutes,
                 )
                 now = self._next_work_time(
-                    datetime.combine(next_day, time(hour=start_hour))
+                    datetime.combine(next_day, time(hour=start_hour)),
+                    cat_start,
+                    cat_end,
                 )
                 if now.hour < preferred:
                     now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
@@ -831,7 +901,9 @@ class TaskPlanner:
                     buffer_minutes,
                 )
                 now = self._next_work_time(
-                    datetime.combine(next_day, time(hour=start_hour))
+                    datetime.combine(next_day, time(hour=start_hour)),
+                    cat_start,
+                    cat_end,
                 )
                 if now.hour < preferred:
                     now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
@@ -850,10 +922,17 @@ class TaskPlanner:
                 buffer_minutes,
             )
             start = self._best_energy_slot(
-                start, session_len, events, energy_curve, buffer_minutes
+                start,
+                session_len,
+                events,
+                energy_curve,
+                buffer_minutes,
+                cat_start,
+                cat_end,
             )
+            start = self._align_category_window(start, session_len, cat_start, cat_end)
             if start != now:
-                now = self._next_work_time(start)
+                now = self._next_work_time(start, cat_start, cat_end)
                 start = now
             end = start + timedelta(minutes=session_len)
             lunch_start = int(os.getenv("LUNCH_START_HOUR", "12"))
@@ -861,7 +940,7 @@ class TaskPlanner:
             lunch_s = start.replace(hour=lunch_start, minute=0, second=0, microsecond=0)
             lunch_e = lunch_s + timedelta(minutes=lunch_dur)
             if start < lunch_e and end > lunch_s:
-                now = self._next_work_time(lunch_e)
+                now = self._next_work_time(lunch_e, cat_start, cat_end)
                 if now.hour < preferred:
                     now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
                 if sessions and now.date() != sessions[-1][0].date():
@@ -871,7 +950,11 @@ class TaskPlanner:
                 raise HTTPException(status_code=400, detail="Cannot schedule before due date")
             end_hour = int(os.getenv("WORK_END_HOUR", "17"))
             if end.hour > end_hour or (end.hour == end_hour and end.minute > 0):
-                now = self._next_work_time(start + timedelta(days=1))
+                now = self._next_work_time(
+                    start + timedelta(days=1),
+                    cat_start,
+                    cat_end,
+                )
                 if now.hour < preferred:
                     now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
                 per_day = 0
@@ -880,7 +963,11 @@ class TaskPlanner:
                 overlap_end = max(
                     e for s, e in events if start < e + timedelta(minutes=buffer_minutes) and end > s - timedelta(minutes=buffer_minutes)
                 )
-                now = self._next_work_time(overlap_end + timedelta(minutes=buffer_minutes))
+                now = self._next_work_time(
+                    overlap_end + timedelta(minutes=buffer_minutes),
+                    cat_start,
+                    cat_end,
+                )
                 if now.hour < preferred:
                     now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
                 if sessions and now.date() != sessions[-1][0].date():
@@ -902,7 +989,9 @@ class TaskPlanner:
                         buffer_minutes,
                     )
                     now = self._next_work_time(
-                        datetime.combine(next_day, time(hour=start_hour))
+                        datetime.combine(next_day, time(hour=start_hour)),
+                        cat_start,
+                        cat_end,
                     )
                     if now.hour < preferred:
                         now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
@@ -923,7 +1012,11 @@ class TaskPlanner:
             break_end = end + timedelta(minutes=break_len)
             events.append((end, break_end))
             events.append((break_end, break_end + timedelta(minutes=buffer_minutes)))
-            now = self._next_work_time(break_end + timedelta(minutes=buffer_minutes))
+            now = self._next_work_time(
+                break_end + timedelta(minutes=buffer_minutes),
+                cat_start,
+                cat_end,
+            )
             if now.hour < preferred:
                 now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
             since_break = (since_break + 1) % long_interval

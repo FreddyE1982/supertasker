@@ -569,8 +569,27 @@ with tabs[3]:
     with st.form("cat-form"):
         name = st.text_input("Name", key="cat-name")
         color = st.color_picker("Color", key="cat-color")
+        start_hour = st.number_input(
+            "Preferred Start Hour",
+            min_value=0,
+            max_value=23,
+            step=1,
+            key="cat-start",
+        )
+        end_hour = st.number_input(
+            "Preferred End Hour",
+            min_value=0,
+            max_value=23,
+            step=1,
+            key="cat-end",
+        )
         if st.form_submit_button("Create"):
-            data = {"name": name, "color": color}
+            data = {
+                "name": name,
+                "color": color,
+                "preferred_start_hour": int(start_hour),
+                "preferred_end_hour": int(end_hour),
+            }
             r = requests.post(f"{API_URL}/categories", json=data)
             if r.status_code == 200:
                 st.success("Created")
@@ -580,4 +599,10 @@ with tabs[3]:
 
     st.header("Categories")
     for cat in st.session_state["categories"]:
-        st.markdown(f"<div style='display:flex;align-items:center;'><div style='width:20px;height:20px;background:{cat['color']};margin-right:5px;'></div>{cat['name']}</div>", unsafe_allow_html=True)
+        info = f"{cat['name']}"
+        if cat.get("preferred_start_hour") is not None and cat.get("preferred_end_hour") is not None:
+            info += f" ({cat['preferred_start_hour']}-{cat['preferred_end_hour']})"
+        st.markdown(
+            f"<div style='display:flex;align-items:center;'><div style='width:20px;height:20px;background:{cat['color']};margin-right:5px;'></div>{info}</div>",
+            unsafe_allow_html=True,
+        )

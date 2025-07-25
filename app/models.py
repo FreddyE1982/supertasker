@@ -18,6 +18,8 @@ class Category(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False, unique=True)
     color = Column(String, nullable=False)
+    preferred_start_hour = Column(Integer, nullable=True)
+    preferred_end_hour = Column(Integer, nullable=True)
 
 class Appointment(Base):
     __tablename__ = 'appointments'

@@ -70,6 +70,8 @@ Appointments and tasks can optionally belong to categories. Create categories vi
 `POST /categories` and reference them using `category_id` when creating or
 planning tasks or appointments. The planner groups tasks of the same category
 close together when ``CATEGORY_CONTEXT_WINDOW`` provides enough room.
+Categories may also define ``preferred_start_hour`` and ``preferred_end_hour``
+so that tasks of that category are scheduled within a specific time window.
 
 ## Focus Session API
 
@@ -150,6 +152,7 @@ settings allow advanced tuning:
 - ``TRANSITION_BUFFER_MINUTES`` – minutes of preparation and wrap-up time before and after every focus session (default 0)
 - ``INTELLIGENT_TRANSITION_BUFFER`` – scale buffer minutes with task difficulty when set to ``1`` or ``true`` (default disabled)
 - ``CATEGORY_CONTEXT_WINDOW`` – minutes around existing same-category tasks to prefer when scheduling (default 60)
+- ``preferred_start_hour`` and ``preferred_end_hour`` – optional fields on categories restricting scheduling to this window
 
 More difficult or high priority tasks are placed earlier in the day while
 easier ones are scheduled later, spreading sessions across days when needed for
