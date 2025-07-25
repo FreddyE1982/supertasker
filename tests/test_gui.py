@@ -64,9 +64,10 @@ def test_full_gui_interaction():
         at = at.tabs[1].number_input(key="plan-he-start").set_value(8).run()
         at = at.tabs[1].number_input(key="plan-he-end").set_value(11).run()
         at = at.tabs[1].number_input(key="plan-fatigue").set_value(0.5).run()
-        at = at.tabs[1].text_input(key="plan-curve").input(",".join(["1"]*24)).run()
+        at = at.tabs[1].text_input(key="plan-curve").input(",".join(["1"] * 24)).run()
         at = at.tabs[1].number_input(key="plan-buffer").set_value(5).run()
         at = at.tabs[1].checkbox(key="plan-int-buffer").check().run()
+        at = at.tabs[1].number_input(key="plan-spaced").set_value(1.0).run()
         at = at.tabs[1].button(key="FormSubmitter:plan-form-Plan").click().run()
         assert "Planned" in [s.value for s in at.success]
         at = at.tabs[1].button(key="refresh-tasks").click().run()
@@ -83,7 +84,9 @@ def test_full_gui_interaction():
         at = at.tabs[1].number_input(key="task-perceived").set_value(2).run()
         at = at.tabs[1].number_input(key="task-estimated").set_value(3).run()
         at = at.tabs[1].number_input(key="task-priority").set_value(3).run()
-        at = at.tabs[1].button(key="FormSubmitter:task-create-form-Create").click().run()
+        at = (
+            at.tabs[1].button(key="FormSubmitter:task-create-form-Create").click().run()
+        )
         assert "Created" in [s.value for s in at.success]
         at = at.tabs[1].button(key="refresh-tasks").click().run()
         assert any(e.label == "Task 1" for e in at.expander)

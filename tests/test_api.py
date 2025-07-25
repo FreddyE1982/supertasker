@@ -1256,3 +1256,24 @@ def test_category_day_weight(monkeypatch):
     ).date()
 
     assert weight_day <= base_day
+
+
+@pytest.mark.env(SPACED_REPETITION_FACTOR="2", INTELLIGENT_DAY_ORDER="1")
+def test_spaced_repetition(monkeypatch):
+    due = TODAY + timedelta(days=5)
+    data = {
+        "title": "Spaced",
+        "description": "",
+        "estimated_difficulty": 2,
+        "estimated_duration_minutes": 50,
+        "due_date": due.isoformat(),
+        "priority": 3,
+        "spaced_repetition_factor": 2,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(sessions) == 2
+    days = [datetime.fromisoformat(s["start_time"]).date() for s in sessions]
+    assert (days[1] - days[0]).days >= 1
