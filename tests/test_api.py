@@ -19,9 +19,11 @@ def wait_for_api(url: str, timeout: float = 5.0):
             time.sleep(0.1)
     return False
 
-API_URL = 'http://localhost:8000'
+
+API_URL = "http://localhost:8000"
 TODAY = date.today()
 TOMORROW = TODAY + timedelta(days=1)
+
 
 @pytest.fixture(autouse=True)
 def start_server(monkeypatch, request):
@@ -31,9 +33,7 @@ def start_server(monkeypatch, request):
     marker = request.node.get_closest_marker("env")
     if marker:
         env.update(marker.kwargs)
-    proc = subprocess.Popen(
-        [sys.executable, "-m", "uvicorn", "app.main:app"], env=env
-    )
+    proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app"], env=env)
     assert wait_for_api(f"{API_URL}/appointments")
     yield
     proc.terminate()
@@ -43,41 +43,41 @@ def start_server(monkeypatch, request):
 
 
 def test_create_list_update_delete():
-    cat = {'name': 'Work', 'color': '#ff0000'}
-    r = requests.post(f'{API_URL}/categories', json=cat)
+    cat = {"name": "Work", "color": "#ff0000"}
+    r = requests.post(f"{API_URL}/categories", json=cat)
     assert r.status_code == 200
     category = r.json()
 
     start = datetime.combine(TOMORROW, dtime(10, 0))
     end = datetime.combine(TOMORROW, dtime(11, 0))
     data = {
-        'title': 'Meeting',
-        'description': 'Discuss project',
-        'start_time': start.isoformat(),
-        'end_time': end.isoformat(),
-        'category_id': category['id']
+        "title": "Meeting",
+        "description": "Discuss project",
+        "start_time": start.isoformat(),
+        "end_time": end.isoformat(),
+        "category_id": category["id"],
     }
-    r = requests.post(f'{API_URL}/appointments', json=data)
+    r = requests.post(f"{API_URL}/appointments", json=data)
     assert r.status_code == 200
     appt = r.json()
-    assert appt['title'] == data['title']
-    assert appt['category_id'] == category['id']
+    assert appt["title"] == data["title"]
+    assert appt["category_id"] == category["id"]
 
-    r = requests.get(f'{API_URL}/appointments')
+    r = requests.get(f"{API_URL}/appointments")
     assert r.status_code == 200
     assert len(r.json()) == 1
 
     update = data.copy()
-    update['title'] = 'Updated Meeting'
-    update['category_id'] = category['id']
+    update["title"] = "Updated Meeting"
+    update["category_id"] = category["id"]
     r = requests.put(f'{API_URL}/appointments/{appt["id"]}', json=update)
     assert r.status_code == 200
-    assert r.json()['title'] == 'Updated Meeting'
-    assert r.json()['category_id'] == category['id']
+    assert r.json()["title"] == "Updated Meeting"
+    assert r.json()["category_id"] == category["id"]
 
     r = requests.delete(f'{API_URL}/appointments/{appt["id"]}')
     assert r.status_code == 200
-    r = requests.get(f'{API_URL}/appointments')
+    r = requests.get(f"{API_URL}/appointments")
     assert r.status_code == 200
     assert r.json() == []
 
@@ -153,9 +153,7 @@ def test_subtask_crud():
     assert len(r.json()) == 1
 
     update = {"title": "Updated Subtask", "completed": True}
-    r = requests.put(
-        f"{API_URL}/tasks/{task['id']}/subtasks/{sub['id']}", json=update
-    )
+    r = requests.put(f"{API_URL}/tasks/{task['id']}/subtasks/{sub['id']}", json=update)
     assert r.status_code == 200
     assert r.json()["completed"] is True
 
@@ -203,9 +201,7 @@ def test_focus_session_crud():
     assert r.status_code == 200
     assert r.json()["completed"] is True
 
-    r = requests.delete(
-        f"{API_URL}/tasks/{task['id']}/focus_sessions/{session['id']}"
-    )
+    r = requests.delete(f"{API_URL}/tasks/{task['id']}/focus_sessions/{session['id']}")
     assert r.status_code == 200
     r = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions")
     assert r.status_code == 200
@@ -307,7 +303,10 @@ def test_plan_task_interlaced():
     task = r.json()
     fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
     assert len(fs) == 4
-    sessions = [(datetime.fromisoformat(s["start_time"]), datetime.fromisoformat(s["end_time"])) for s in fs]
+    sessions = [
+        (datetime.fromisoformat(s["start_time"]), datetime.fromisoformat(s["end_time"]))
+        for s in fs
+    ]
     appointments = [
         (
             datetime.combine(TOMORROW, dtime(9, 0)),
@@ -347,9 +346,7 @@ def test_planner_respects_work_hours(monkeypatch):
     assert r.status_code == 200
     task = r.json()
     fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
-    assert all(
-        8 <= datetime.fromisoformat(s["start_time"]).hour < 16 for s in fs
-    )
+    assert all(8 <= datetime.fromisoformat(s["start_time"]).hour < 16 for s in fs)
     assert all(
         8 < datetime.fromisoformat(s["end_time"]).hour <= 16
         or (
@@ -387,14 +384,14 @@ def test_planner_considers_difficulty(monkeypatch):
     assert r.status_code == 200
     easy_task = r.json()
     hard_start = datetime.fromisoformat(
-        requests.get(
-            f"{API_URL}/tasks/{hard_task['id']}/focus_sessions"
-        ).json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{hard_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).hour
     easy_start = datetime.fromisoformat(
-        requests.get(
-            f"{API_URL}/tasks/{easy_task['id']}/focus_sessions"
-        ).json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{easy_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).hour
     assert hard_start <= easy_start
 
@@ -426,14 +423,14 @@ def test_planner_considers_priority(monkeypatch):
     assert r.status_code == 200
     low_task = r.json()
     high_start = datetime.fromisoformat(
-        requests.get(
-            f"{API_URL}/tasks/{high_task['id']}/focus_sessions"
-        ).json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{high_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).hour
     low_start = datetime.fromisoformat(
-        requests.get(
-            f"{API_URL}/tasks/{low_task['id']}/focus_sessions"
-        ).json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{low_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).hour
     assert high_start <= low_start
 
@@ -451,9 +448,7 @@ def test_planner_spreads_sessions(monkeypatch):
     r = requests.post(f"{API_URL}/tasks/plan", json=plan)
     assert r.status_code == 200
     task = r.json()
-    sessions = requests.get(
-        f"{API_URL}/tasks/{task['id']}/focus_sessions"
-    ).json()
+    sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
     days = {datetime.fromisoformat(s["start_time"]).date() for s in sessions}
     assert len(days) >= 2
     assert max(days) <= due
@@ -475,7 +470,9 @@ def test_custom_session_length(monkeypatch):
     task = r.json()
     sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
     assert len(sessions) == 1
-    delta = datetime.fromisoformat(sessions[0]["end_time"]) - datetime.fromisoformat(sessions[0]["start_time"])
+    delta = datetime.fromisoformat(sessions[0]["end_time"]) - datetime.fromisoformat(
+        sessions[0]["start_time"]
+    )
     assert delta == timedelta(minutes=50)
 
 
@@ -546,10 +543,14 @@ def test_planner_importance_affects_start_day(monkeypatch):
     assert r.status_code == 200
     low_task = r.json()
     high_day = datetime.fromisoformat(
-        requests.get(f"{API_URL}/tasks/{high_task['id']}/focus_sessions").json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{high_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).date()
     low_day = datetime.fromisoformat(
-        requests.get(f"{API_URL}/tasks/{low_task['id']}/focus_sessions").json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{low_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).date()
     assert high_day <= low_day
 
@@ -761,6 +762,7 @@ curve_imp = [1] * 24
 curve_imp[9] = 10
 curve_imp[17] = 2
 
+
 @pytest.mark.env(
     WORK_START_HOUR="8",
     WORK_END_HOUR="18",
@@ -792,14 +794,14 @@ def test_energy_curve_importance():
     low_task = r.json()
 
     high_hour = datetime.fromisoformat(
-        requests.get(
-            f"{API_URL}/tasks/{high_task['id']}/focus_sessions"
-        ).json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{high_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).hour
     low_hour = datetime.fromisoformat(
-        requests.get(
-            f"{API_URL}/tasks/{low_task['id']}/focus_sessions"
-        ).json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{low_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).hour
 
     assert high_hour == 9
@@ -830,8 +832,12 @@ def test_fatigue_break_factor(monkeypatch):
     task = r.json()
     fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
     assert len(fs) == 3
-    b1 = datetime.fromisoformat(fs[1]["start_time"]) - datetime.fromisoformat(fs[0]["end_time"])
-    b2 = datetime.fromisoformat(fs[2]["start_time"]) - datetime.fromisoformat(fs[1]["end_time"])
+    b1 = datetime.fromisoformat(fs[1]["start_time"]) - datetime.fromisoformat(
+        fs[0]["end_time"]
+    )
+    b2 = datetime.fromisoformat(fs[2]["start_time"]) - datetime.fromisoformat(
+        fs[1]["end_time"]
+    )
     assert b1 == timedelta(minutes=5)
     assert b2 == timedelta(minutes=10)
 
@@ -840,9 +846,7 @@ def test_fatigue_break_factor(monkeypatch):
     WORK_START_HOUR="9",
     WORK_END_HOUR="19",
     INTELLIGENT_SLOT_SELECTION="1",
-    ENERGY_CURVE=",".join(
-        ["1"] * 15 + ["10", "2", "8"] + ["1"] * 6
-    ),
+    ENERGY_CURVE=",".join(["1"] * 15 + ["10", "2", "8"] + ["1"] * 6),
 )
 def test_intelligent_slot_selection(monkeypatch):
     busy = {
@@ -918,13 +922,17 @@ def test_daily_difficulty_limit(monkeypatch):
     assert r.status_code == 200
     t1 = r.json()
     day1 = datetime.fromisoformat(
-        requests.get(f"{API_URL}/tasks/{t1['id']}/focus_sessions").json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{t1['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).date()
     r = requests.post(f"{API_URL}/tasks/plan", json=second)
     assert r.status_code == 200
     t2 = r.json()
     day2 = datetime.fromisoformat(
-        requests.get(f"{API_URL}/tasks/{t2['id']}/focus_sessions").json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{t2['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).date()
     assert day1 != day2
 
@@ -952,13 +960,17 @@ def test_daily_energy_limit(monkeypatch):
     assert r.status_code == 200
     t1 = r.json()
     day1 = datetime.fromisoformat(
-        requests.get(f"{API_URL}/tasks/{t1['id']}/focus_sessions").json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{t1['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).date()
     r = requests.post(f"{API_URL}/tasks/plan", json=second)
     assert r.status_code == 200
     t2 = r.json()
     day2 = datetime.fromisoformat(
-        requests.get(f"{API_URL}/tasks/{t2['id']}/focus_sessions").json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{t2['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).date()
     assert day1 != day2
 
@@ -1067,12 +1079,12 @@ def test_category_context_grouping(monkeypatch):
     category = r.json()
 
     first = {
-        "title": "First", 
-        "description": "", 
-        "estimated_difficulty": 3, 
-        "estimated_duration_minutes": 25, 
-        "due_date": TOMORROW.isoformat(), 
-        "priority": 3, 
+        "title": "First",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
         "category_id": category["id"],
     }
     r = requests.post(f"{API_URL}/tasks/plan", json=first)
@@ -1082,12 +1094,12 @@ def test_category_context_grouping(monkeypatch):
     end1 = datetime.fromisoformat(fs1["end_time"])
 
     second = {
-        "title": "Second", 
-        "description": "", 
-        "estimated_difficulty": 2, 
-        "estimated_duration_minutes": 25, 
-        "due_date": TOMORROW.isoformat(), 
-        "priority": 2, 
+        "title": "Second",
+        "description": "",
+        "estimated_difficulty": 2,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 2,
         "category_id": category["id"],
     }
     r = requests.post(f"{API_URL}/tasks/plan", json=second)
@@ -1127,3 +1139,64 @@ def test_category_preferred_hours(monkeypatch):
     start_hour = datetime.fromisoformat(fs[0]["start_time"]).hour
     assert 8 <= start_hour < 10
 
+
+@pytest.mark.env(
+    INTELLIGENT_SLOT_SELECTION="1",
+    PRODUCTIVITY_HISTORY_WEIGHT="1",
+    WORK_START_HOUR="8",
+    WORK_END_HOUR="18",
+)
+def test_productivity_history(monkeypatch):
+    hist_task = {
+        "title": "History",
+        "description": "",
+        "due_date": TODAY.isoformat(),
+        "start_date": None,
+        "end_date": None,
+        "start_time": None,
+        "end_time": None,
+        "perceived_difficulty": 1,
+        "estimated_difficulty": 1,
+        "priority": 1,
+        "worked_on": False,
+        "paused": False,
+    }
+    r = requests.post(f"{API_URL}/tasks", json=hist_task)
+    assert r.status_code == 200
+    task = r.json()
+
+    start1 = datetime.combine(TODAY - timedelta(days=1), dtime(8, 0))
+    fs1 = {"duration_minutes": 25, "start_time": start1.isoformat()}
+    r = requests.post(f"{API_URL}/tasks/{task['id']}/focus_sessions", json=fs1)
+    assert r.status_code == 200
+    s1 = r.json()
+    end1 = start1 + timedelta(minutes=25)
+    r = requests.put(
+        f"{API_URL}/tasks/{task['id']}/focus_sessions/{s1['id']}",
+        json={"completed": True, "end_time": end1.isoformat()},
+    )
+    assert r.status_code == 200
+
+    start2 = datetime.combine(TODAY - timedelta(days=1), dtime(15, 0))
+    fs2 = {"duration_minutes": 25, "start_time": start2.isoformat()}
+    r = requests.post(f"{API_URL}/tasks/{task['id']}/focus_sessions", json=fs2)
+    assert r.status_code == 200
+
+    plan = {
+        "title": "Future",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 5,
+        "high_energy_start_hour": 8,
+        "productivity_history_weight": 1,
+        "productivity_half_life_days": 30,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=plan)
+    assert r.status_code == 200
+    new_task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{new_task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    hour = datetime.fromisoformat(fs[0]["start_time"]).hour
+    assert hour == 8
