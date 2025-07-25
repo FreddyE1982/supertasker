@@ -134,6 +134,8 @@ settings allow advanced tuning:
   (default 0 disables deep work planning)
 - ``DAILY_DIFFICULTY_LIMIT`` – maximum total difficulty scheduled per day across
   all tasks (default 0 disables difficulty balancing)
+- ``TRANSITION_BUFFER_MINUTES`` – minutes of preparation and wrap-up time before and after every focus session (default 0)
+- ``INTELLIGENT_TRANSITION_BUFFER`` – scale buffer minutes with task difficulty when set to ``1`` or ``true`` (default disabled)
 
 More difficult or high priority tasks are placed earlier in the day while
 easier ones are scheduled later, spreading sessions across days when needed for

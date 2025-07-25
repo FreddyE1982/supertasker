@@ -204,6 +204,18 @@ with tabs[1]:
             step=0.1,
             key="plan-day-weight",
         )
+        p_buffer = st.number_input(
+            "Transition Buffer Minutes",
+            min_value=0,
+            value=int(os.getenv("TRANSITION_BUFFER_MINUTES", "0")),
+            step=1,
+            key="plan-buffer",
+        )
+        p_int_buffer = st.checkbox(
+            "Intelligent Transition Buffer",
+            value=os.getenv("INTELLIGENT_TRANSITION_BUFFER", "0") in ["1", "true", "True"],
+            key="plan-int-buffer",
+        )
         if st.form_submit_button("Plan"):
             data = {
                 "title": p_title,
@@ -217,6 +229,8 @@ with tabs[1]:
                 "fatigue_break_factor": float(p_fatigue),
                 "energy_curve": [int(x) for x in p_curve.split(",") if x.strip()],
                 "energy_day_order_weight": float(p_day_weight),
+                "transition_buffer_minutes": int(p_buffer),
+                "intelligent_transition_buffer": bool(p_int_buffer),
             }
             r = requests.post(f"{API_URL}/tasks/plan", json=data)
             if r.status_code == 200:

@@ -928,3 +928,74 @@ def test_daily_difficulty_limit(monkeypatch):
     ).date()
     assert day1 != day2
 
+
+@pytest.mark.env(TRANSITION_BUFFER_MINUTES="15")
+def test_transition_buffer(monkeypatch):
+    block = {
+        "title": "Block",
+        "description": "",
+        "start_time": datetime.combine(TODAY, dtime(0, 0)).isoformat(),
+        "end_time": datetime.combine(TODAY, dtime(23, 59)).isoformat(),
+    }
+    requests.post(f"{API_URL}/appointments", json=block)
+    busy = {
+        "title": "Busy",
+        "description": "",
+        "start_time": datetime.combine(TOMORROW, dtime(9, 0)).isoformat(),
+        "end_time": datetime.combine(TOMORROW, dtime(10, 0)).isoformat(),
+    }
+    r = requests.post(f"{API_URL}/appointments", json=busy)
+    assert r.status_code == 200
+
+    data = {
+        "title": "BufferTask",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    start = datetime.fromisoformat(fs[0]["start_time"])
+    assert start >= datetime.combine(TOMORROW, dtime(10, 0)) + timedelta(minutes=15)
+
+
+@pytest.mark.env(TRANSITION_BUFFER_MINUTES="10", INTELLIGENT_TRANSITION_BUFFER="1")
+def test_intelligent_buffer(monkeypatch):
+    block = {
+        "title": "BlockToday",
+        "description": "",
+        "start_time": datetime.combine(TODAY, dtime(0, 0)).isoformat(),
+        "end_time": datetime.combine(TODAY, dtime(23, 59)).isoformat(),
+    }
+    requests.post(f"{API_URL}/appointments", json=block)
+    busy = {
+        "title": "Block",
+        "description": "",
+        "start_time": datetime.combine(TOMORROW, dtime(9, 0)).isoformat(),
+        "end_time": datetime.combine(TOMORROW, dtime(10, 0)).isoformat(),
+    }
+    r = requests.post(f"{API_URL}/appointments", json=busy)
+    assert r.status_code == 200
+
+    data = {
+        "title": "SmartBuffer",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    start = datetime.fromisoformat(fs[0]["start_time"])
+    expected = datetime.combine(TOMORROW, dtime(10, 0)) + timedelta(minutes=20)
+    assert start >= expected
+
