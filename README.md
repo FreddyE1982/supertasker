@@ -132,6 +132,8 @@ settings allow advanced tuning:
 - ``DEEP_WORK_THRESHOLD`` – difficulty level from 1-5 that triggers scheduling
   all focus sessions for that task consecutively in the largest available block
   (default 0 disables deep work planning)
+- ``DAILY_DIFFICULTY_LIMIT`` – maximum total difficulty scheduled per day across
+  all tasks (default 0 disables difficulty balancing)
 
 More difficult or high priority tasks are placed earlier in the day while
 easier ones are scheduled later, spreading sessions across days when needed for
