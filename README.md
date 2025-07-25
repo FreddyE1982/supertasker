@@ -86,7 +86,10 @@ a corresponding subtask so large tasks are automatically broken into manageable
 parts.
 The planner honours the ``WORK_START_HOUR`` and ``WORK_END_HOUR`` environment
 variables as well as ``MAX_SESSIONS_PER_DAY`` to adapt to custom working hours
-and workload distribution. Additional settings allow advanced tuning:
+and workload distribution. When ``INTELLIGENT_DAY_ORDER`` is enabled it
+also weighs the available energy on each day using ``ENERGY_DAY_ORDER_WEIGHT``
+so that sessions land on days with both enough time and high energy. Additional
+settings allow advanced tuning:
 
 - ``SESSION_LENGTH_MINUTES`` – duration of each focus session (default 25)
 - ``INTELLIGENT_SESSION_LENGTH`` – scale session length based on difficulty and priority when set to ``1`` or ``true`` (default disabled)
@@ -106,6 +109,8 @@ and workload distribution. Additional settings allow advanced tuning:
   (default unlimited)
 - ``INTELLIGENT_DAY_ORDER`` – prefer days with more free time when scheduling
   focus sessions (default disabled)
+- ``ENERGY_DAY_ORDER_WEIGHT`` – additional weight for days with higher available
+  energy when intelligent day order is enabled (default 0)
 - ``WORK_DAYS`` – comma-separated list of weekday numbers (0=Monday) that are
   considered working days. By default all days are allowed.
 - ``LUNCH_START_HOUR`` – hour when a daily lunch break begins (default 12)

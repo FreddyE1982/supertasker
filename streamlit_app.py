@@ -197,6 +197,13 @@ with tabs[1]:
             value=os.getenv("ENERGY_CURVE", ""),
             key="plan-curve",
         )
+        p_day_weight = st.number_input(
+            "Energy Day Order Weight",
+            min_value=0.0,
+            value=float(os.getenv("ENERGY_DAY_ORDER_WEIGHT", "0")),
+            step=0.1,
+            key="plan-day-weight",
+        )
         if st.form_submit_button("Plan"):
             data = {
                 "title": p_title,
@@ -209,6 +216,7 @@ with tabs[1]:
                 "high_energy_end_hour": int(he_end),
                 "fatigue_break_factor": float(p_fatigue),
                 "energy_curve": [int(x) for x in p_curve.split(",") if x.strip()],
+                "energy_day_order_weight": float(p_day_weight),
             }
             r = requests.post(f"{API_URL}/tasks/plan", json=data)
             if r.status_code == 200:

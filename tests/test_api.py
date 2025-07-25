@@ -700,6 +700,41 @@ def test_intelligent_day_order(monkeypatch):
     assert start_day == TOMORROW + timedelta(days=1)
 
 
+@pytest.mark.env(INTELLIGENT_DAY_ORDER="1", ENERGY_DAY_ORDER_WEIGHT="2")
+def test_energy_weighted_day_order(monkeypatch):
+    curve = [1] * 24
+    curve[9] = 10
+    monkeypatch.setenv("ENERGY_CURVE", ",".join(str(x) for x in curve))
+    busy_start = datetime.combine(TOMORROW, dtime(9, 0))
+    busy_end = datetime.combine(TOMORROW, dtime(10, 0))
+    appt = {
+        "title": "Block",
+        "description": "",
+        "start_time": busy_start.isoformat(),
+        "end_time": busy_end.isoformat(),
+    }
+    r = requests.post(f"{API_URL}/appointments", json=appt)
+    assert r.status_code == 200
+
+    plan = {
+        "title": "EnergyPlan",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": (TOMORROW + timedelta(days=1)).isoformat(),
+        "priority": 3,
+        "energy_curve": curve,
+        "energy_day_order_weight": 2,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=plan)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    start_day = datetime.fromisoformat(fs[0]["start_time"]).date()
+    assert start_day == TOMORROW + timedelta(days=1)
+
+
 @pytest.mark.env()
 def test_energy_curve(monkeypatch):
     curve = ",".join("0" if i != 15 else "10" for i in range(24))
