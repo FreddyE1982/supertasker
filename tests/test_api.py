@@ -871,3 +871,26 @@ def test_intelligent_slot_selection(monkeypatch):
     start_hour = datetime.fromisoformat(fs[0]["start_time"]).hour
     assert start_hour == 15
 
+
+@pytest.mark.env(DEEP_WORK_THRESHOLD="4", WORK_START_HOUR="9", WORK_END_HOUR="12")
+def test_deep_work_mode(monkeypatch):
+    data = {
+        "title": "DeepWork",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 75,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    sessions = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(sessions) == 3
+    dates = {datetime.fromisoformat(s["start_time"]).date() for s in sessions}
+    assert len(dates) == 1
+    for i in range(1, len(sessions)):
+        prev_end = datetime.fromisoformat(sessions[i - 1]["end_time"])
+        start = datetime.fromisoformat(sessions[i]["start_time"])
+        assert start - prev_end == timedelta(minutes=5)
+
