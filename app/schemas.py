@@ -80,6 +80,7 @@ class PlanTaskCreate(BaseModel):
     intelligent_transition_buffer: bool | None = None
     productivity_history_weight: float | None = None
     productivity_half_life_days: int | None = None
+    category_productivity_weight: float | None = None
     spaced_repetition_factor: float | None = None
 
 

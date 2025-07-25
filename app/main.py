@@ -188,6 +188,28 @@ class TaskPlanner:
             rates.append(s / t if t else 0.5)
         return rates
 
+    def _historical_category_productivity(
+        self, category_id: int, half_life: int
+    ) -> list[float]:
+        """Return hourly completion rates for a specific category."""
+        success = [0.0] * 24
+        total = [0.0] * 24
+        now = datetime.utcnow()
+        query = (
+            self.db.query(models.FocusSession.start_time, models.FocusSession.completed)
+            .join(models.Task, models.Task.id == models.FocusSession.task_id)
+            .filter(models.Task.category_id == category_id)
+            .all()
+        )
+        for start_time, completed in query:
+            hour = start_time.hour
+            days = max(0, (now - start_time).days)
+            weight = 0.5 ** (days / half_life) if half_life > 0 else 1.0
+            total[hour] += weight
+            if completed:
+                success[hour] += weight
+        return [s / t if t else 0.5 for s, t in zip(success, total)]
+
     def _next_work_time(
         self,
         dt: datetime,
@@ -341,6 +363,8 @@ class TaskPlanner:
         end_hour: int | None = None,
         productivity_weight: float | None = None,
         half_life: int | None = None,
+        category_id: int | None = None,
+        category_weight: float | None = None,
     ) -> datetime:
         """Return the best available start time on ``start``'s day based on the
         highest energy level within working hours."""
@@ -366,7 +390,14 @@ class TaskPlanner:
             productivity_weight = float(os.getenv("PRODUCTIVITY_HISTORY_WEIGHT", "0"))
         if half_life is None:
             half_life = int(os.getenv("PRODUCTIVITY_HALF_LIFE_DAYS", "30"))
+        if category_weight is None:
+            category_weight = float(os.getenv("CATEGORY_PRODUCTIVITY_WEIGHT", "0"))
         hist = self._historical_productivity(half_life) if productivity_weight else None
+        cat_hist = (
+            self._historical_category_productivity(category_id, half_life)
+            if category_weight and category_id is not None
+            else None
+        )
 
         aligned = start.replace(second=0, microsecond=0)
         day_start = aligned.replace(hour=start_hour, minute=0)
@@ -387,6 +418,8 @@ class TaskPlanner:
                 )
                 if hist:
                     energy *= 1 + productivity_weight * (hist[candidate.hour] - 0.5) * 2
+                if cat_hist:
+                    energy *= 1 + category_weight * (cat_hist[candidate.hour] - 0.5) * 2
                 if energy > best_energy:
                     best_energy = energy
                     best = candidate
@@ -868,6 +901,7 @@ class TaskPlanner:
         intelligent_buffer: bool | None = None,
         productivity_weight: float | None = None,
         productivity_half_life: int | None = None,
+        category_productivity_weight: float | None = None,
         spaced_repetition_factor: float | None = None,
     ) -> list[tuple[datetime, datetime]]:
         urgency = self._urgency(due)
@@ -927,7 +961,9 @@ class TaskPlanner:
         if category_day_weight is None:
             category_day_weight = float(os.getenv("CATEGORY_DAY_WEIGHT", "0"))
 
-        now = self._next_work_time(datetime.utcnow(), cat_start, cat_end)
+        start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+        today_start = datetime.combine(datetime.utcnow().date(), time(hour=start_hour))
+        now = self._next_work_time(today_start, cat_start, cat_end)
         preferred = self._preferred_start_hour(
             difficulty, priority, urgency, energy_curve, cat_start, cat_end
         )
@@ -1126,6 +1162,8 @@ class TaskPlanner:
                 cat_end,
                 productivity_weight,
                 productivity_half_life,
+                category_id,
+                category_productivity_weight,
             )
             start = self._align_category_window(start, session_len, cat_start, cat_end)
             if start != now:
@@ -1294,6 +1332,7 @@ class TaskPlanner:
             data.intelligent_transition_buffer,
             data.productivity_history_weight,
             data.productivity_half_life_days,
+            data.category_productivity_weight,
             data.spaced_repetition_factor,
         )
 

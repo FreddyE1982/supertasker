@@ -232,6 +232,13 @@ with tabs[1]:
             step=0.1,
             key="plan-day-weight",
         )
+        p_cat_prod = st.number_input(
+            "Category Productivity Weight",
+            min_value=0.0,
+            value=float(os.getenv("CATEGORY_PRODUCTIVITY_WEIGHT", "0")),
+            step=0.1,
+            key="plan-cat-prod",
+        )
         p_buffer = st.number_input(
             "Transition Buffer Minutes",
             min_value=0,
@@ -267,6 +274,7 @@ with tabs[1]:
                 "energy_day_order_weight": float(p_day_weight),
                 "transition_buffer_minutes": int(p_buffer),
                 "intelligent_transition_buffer": bool(p_int_buffer),
+                "category_productivity_weight": float(p_cat_prod),
                 "spaced_repetition_factor": float(p_spaced),
                 "category_id": p_category_id,
             }
