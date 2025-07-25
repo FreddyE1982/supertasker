@@ -135,6 +135,25 @@ class TaskPlanner:
             loads[d] = loads.get(d, 0) + diff_val
         return loads
 
+    def _energy_loads(self) -> dict[date, int]:
+        """Return the accumulated energy (difficulty * minutes) per day."""
+        loads: dict[date, int] = {}
+        query = (
+            self.db.query(
+                models.FocusSession.start_time,
+                models.FocusSession.end_time,
+                models.Task.estimated_difficulty,
+            )
+            .join(models.Task, models.Task.id == models.FocusSession.task_id)
+            .all()
+        )
+        for start_time, end_time, diff in query:
+            d = start_time.date()
+            diff_val = diff if diff is not None else 0
+            length = int((end_time - start_time).total_seconds() // 60)
+            loads[d] = loads.get(d, 0) + diff_val * length
+        return loads
+
     def _next_work_time(self, dt: datetime) -> datetime:
         start_hour = int(os.getenv("WORK_START_HOUR", "9"))
         end_hour = int(os.getenv("WORK_END_HOUR", "17"))
@@ -677,6 +696,8 @@ class TaskPlanner:
         daily_counts = self._session_counts()
         difficulty_limit = int(os.getenv("DAILY_DIFFICULTY_LIMIT", "0"))
         difficulty_loads = self._difficulty_loads()
+        energy_limit = int(os.getenv("DAILY_ENERGY_LIMIT", "0"))
+        energy_loads = self._energy_loads()
 
         now = self._next_work_time(datetime.utcnow())
         preferred = self._preferred_start_hour(
@@ -798,6 +819,25 @@ class TaskPlanner:
                 if sessions and now.date() != sessions[-1][0].date():
                     per_day = 0
                 continue
+            if energy_limit and energy_loads.get(now.date(), 0) + difficulty * session_len > energy_limit:
+                start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+                next_day = self._next_day_by_free_time(
+                    now.date() + timedelta(days=1),
+                    last_work_day,
+                    events,
+                    work_days,
+                    energy_curve,
+                    energy_day_order_weight,
+                    buffer_minutes,
+                )
+                now = self._next_work_time(
+                    datetime.combine(next_day, time(hour=start_hour))
+                )
+                if now.hour < preferred:
+                    now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
+                if sessions and now.date() != sessions[-1][0].date():
+                    per_day = 0
+                continue
             start = self._avoid_low_energy(now, difficulty)
             start = self._prefer_high_energy(
                 start, difficulty, priority, session_len, he_start, he_end
@@ -890,6 +930,7 @@ class TaskPlanner:
             per_day += 1
             daily_counts[start.date()] = daily_counts.get(start.date(), 0) + 1
             difficulty_loads[start.date()] = difficulty_loads.get(start.date(), 0) + difficulty
+            energy_loads[start.date()] = energy_loads.get(start.date(), 0) + difficulty * session_len
         return sessions
 
     def plan(self, data: schemas.PlanTaskCreate) -> models.Task:
