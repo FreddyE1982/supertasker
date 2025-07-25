@@ -351,14 +351,65 @@ class TaskPlanner:
                     busy += int((overlap_end - overlap_start).total_seconds() // 60)
         return max(0, total - busy)
 
+    def _available_energy(
+        self,
+        day: date,
+        events: list[tuple[datetime, datetime]],
+        energy_curve: list[int] | None = None,
+    ) -> int:
+        """Return a weighted energy score for all free minutes on ``day``."""
+        if energy_curve is None:
+            curve_env = os.getenv("ENERGY_CURVE")
+            if curve_env:
+                try:
+                    curve = [int(x) for x in curve_env.split(",")]
+                    if len(curve) == 24:
+                        energy_curve = curve
+                except ValueError:
+                    energy_curve = None
+
+        start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+        end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+        lunch_start = int(os.getenv("LUNCH_START_HOUR", "12"))
+        lunch_dur = int(os.getenv("LUNCH_DURATION_MINUTES", "60"))
+
+        intervals = [
+            (
+                datetime.combine(day, time(hour=start_hour)),
+                datetime.combine(day, time(hour=lunch_start)),
+            ),
+            (
+                datetime.combine(day, time(hour=lunch_start))
+                + timedelta(minutes=lunch_dur),
+                datetime.combine(day, time(hour=end_hour)),
+            ),
+        ]
+        step = int(os.getenv("SLOT_STEP_MINUTES", "15"))
+        score = 0
+        for s, e in intervals:
+            t = s
+            while t < e:
+                block_end = t + timedelta(minutes=step)
+                if not self._conflicts(t, block_end, events):
+                    level = (
+                        energy_curve[t.hour]
+                        if energy_curve and len(energy_curve) == 24
+                        else 1
+                    )
+                    score += level
+                t = block_end
+        return score
+
     def _next_day_by_free_time(
         self,
         start: date,
         last_day: date,
         events: list[tuple[datetime, datetime]],
         work_days: set[int],
+        energy_curve: list[int] | None = None,
+        energy_weight: float | None = None,
     ) -> date:
-        """Return the next planning day, preferring one with most free minutes."""
+        """Return the next planning day using free time and optional energy weighting."""
         days: list[date] = []
         d = start
         while d <= last_day:
@@ -368,7 +419,15 @@ class TaskPlanner:
         if not days:
             raise HTTPException(status_code=400, detail="Cannot schedule before due date")
         if os.getenv("INTELLIGENT_DAY_ORDER", "0") in {"1", "true", "True"}:
-            days.sort(key=lambda day: self._free_minutes(day, events), reverse=True)
+            if energy_weight is None:
+                energy_weight = float(os.getenv("ENERGY_DAY_ORDER_WEIGHT", "0"))
+            days.sort(
+                key=lambda day: (
+                    self._free_minutes(day, events)
+                    + energy_weight * self._available_energy(day, events, energy_curve)
+                ),
+                reverse=True,
+            )
         return days[0]
 
 
@@ -383,6 +442,7 @@ class TaskPlanner:
         high_energy_end: int | None = None,
         fatigue_break_factor: float | None = None,
         energy_curve: list[int] | None = None,
+        energy_day_order_weight: float | None = None,
     ) -> list[tuple[datetime, datetime]]:
         urgency = self._urgency(due)
         session_len = self._session_length(difficulty, priority, urgency)
@@ -436,7 +496,14 @@ class TaskPlanner:
         offset = round((importance - 1) / 4 * days_left * 0.5)
         start_candidate = last_work_day - timedelta(days=days_needed - 1 + offset)
         start_day = max(now.date(), start_candidate)
-        start_day = self._next_day_by_free_time(start_day, last_work_day, events, work_days)
+        start_day = self._next_day_by_free_time(
+            start_day,
+            last_work_day,
+            events,
+            work_days,
+            energy_curve,
+            energy_day_order_weight,
+        )
         now = self._next_work_time(datetime.combine(start_day, time(hour=preferred)))
         if now.hour < preferred:
             now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
@@ -455,6 +522,8 @@ class TaskPlanner:
                     last_work_day,
                     events,
                     work_days,
+                    energy_curve,
+                    energy_day_order_weight,
                 )
                 now = self._next_work_time(
                     datetime.combine(next_day, time(hour=start_hour))
@@ -512,6 +581,8 @@ class TaskPlanner:
                         last_work_day,
                         events,
                         work_days,
+                        energy_curve,
+                        energy_day_order_weight,
                     )
                     now = self._next_work_time(
                         datetime.combine(next_day, time(hour=start_hour))
@@ -566,6 +637,7 @@ class TaskPlanner:
             data.high_energy_end_hour,
             data.fatigue_break_factor,
             data.energy_curve,
+            data.energy_day_order_weight,
         )
 
         for idx, (s, e) in enumerate(sessions, start=1):
