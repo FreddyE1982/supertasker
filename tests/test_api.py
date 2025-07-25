@@ -929,6 +929,40 @@ def test_daily_difficulty_limit(monkeypatch):
     assert day1 != day2
 
 
+@pytest.mark.env(DAILY_ENERGY_LIMIT="200")
+def test_daily_energy_limit(monkeypatch):
+    due = TODAY + timedelta(days=1)
+    first = {
+        "title": "Energy1",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 25,
+        "due_date": due.isoformat(),
+        "priority": 3,
+    }
+    second = {
+        "title": "Energy2",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 25,
+        "due_date": (due + timedelta(days=1)).isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=first)
+    assert r.status_code == 200
+    t1 = r.json()
+    day1 = datetime.fromisoformat(
+        requests.get(f"{API_URL}/tasks/{t1['id']}/focus_sessions").json()[0]["start_time"]
+    ).date()
+    r = requests.post(f"{API_URL}/tasks/plan", json=second)
+    assert r.status_code == 200
+    t2 = r.json()
+    day2 = datetime.fromisoformat(
+        requests.get(f"{API_URL}/tasks/{t2['id']}/focus_sessions").json()[0]["start_time"]
+    ).date()
+    assert day1 != day2
+
+
 @pytest.mark.env(TRANSITION_BUFFER_MINUTES="15")
 def test_transition_buffer(monkeypatch):
     block = {
