@@ -800,3 +800,39 @@ def test_fatigue_break_factor(monkeypatch):
     assert b1 == timedelta(minutes=5)
     assert b2 == timedelta(minutes=10)
 
+
+@pytest.mark.env(
+    WORK_START_HOUR="9",
+    WORK_END_HOUR="19",
+    INTELLIGENT_SLOT_SELECTION="1",
+    ENERGY_CURVE=",".join(
+        ["1"] * 15 + ["10", "2", "8"] + ["1"] * 6
+    ),
+)
+def test_intelligent_slot_selection(monkeypatch):
+    busy = {
+        "title": "Busy",
+        "description": "",
+        "start_time": datetime.combine(TOMORROW, dtime(17, 0)).isoformat(),
+        "end_time": datetime.combine(TOMORROW, dtime(18, 0)).isoformat(),
+    }
+    r = requests.post(f"{API_URL}/appointments", json=busy)
+    assert r.status_code == 200
+
+    data = {
+        "title": "SmartSlot",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+        "energy_curve": [1] * 15 + [10, 2, 8] + [1] * 6,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    start_hour = datetime.fromisoformat(fs[0]["start_time"]).hour
+    assert start_hour == 15
+

@@ -120,6 +120,10 @@ and workload distribution. Additional settings allow advanced tuning:
 - ``HIGH_ENERGY_END_HOUR`` – end of the preferred high energy window (default 12)
 - ``FATIGUE_BREAK_FACTOR`` – multiply break length by ``1 + sessions_today * factor`` to model fatigue (default 0)
 - ``ENERGY_CURVE`` – comma-separated 24 numbers representing energy levels per hour to pick better start times (optional)
+- ``INTELLIGENT_SLOT_SELECTION`` – pick the best free time on a day based on the
+  highest energy level (default disabled)
+- ``SLOT_STEP_MINUTES`` – minutes between candidate start times when intelligent
+  slot selection is enabled (default 15)
 
 More difficult or high priority tasks are placed earlier in the day while
 easier ones are scheduled later, spreading sessions across days when needed for
@@ -134,3 +138,6 @@ overlap with this daily break.
 Hard tasks are also moved out of the ``LOW_ENERGY_START_HOUR`` to ``LOW_ENERGY_END_HOUR`` window to keep sessions productive.
 Important tasks are additionally pulled into the ``HIGH_ENERGY_START_HOUR`` to ``HIGH_ENERGY_END_HOUR`` window whenever possible so the most challenging work occurs during peak focus times.
 Providing an ``ENERGY_CURVE`` lets the planner map task importance to these energy levels so that highly important tasks start at times with higher energy values while less critical ones are placed into lower energy periods.
+Enabling ``INTELLIGENT_SLOT_SELECTION`` further refines placement by scanning
+all free slots on a day and picking the time with the highest energy value so
+work always happens when focus is expected to be strongest.

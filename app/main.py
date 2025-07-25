@@ -240,6 +240,53 @@ class TaskPlanner:
             dt = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0) + timedelta(days=1)
         return dt
 
+    def _best_energy_slot(
+        self,
+        start: datetime,
+        session_len: int,
+        events: list[tuple[datetime, datetime]],
+        energy_curve: list[int] | None = None,
+    ) -> datetime:
+        """Return the best available start time on ``start``'s day based on the
+        highest energy level within working hours."""
+        if os.getenv("INTELLIGENT_SLOT_SELECTION", "0") not in {"1", "true", "True"}:
+            return start
+
+        if energy_curve is None:
+            curve_env = os.getenv("ENERGY_CURVE")
+            if curve_env:
+                try:
+                    curve = [int(x) for x in curve_env.split(",")]
+                    if len(curve) == 24:
+                        energy_curve = curve
+                except ValueError:
+                    energy_curve = None
+
+        step = int(os.getenv("SLOT_STEP_MINUTES", "15"))
+        start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+        end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+
+        aligned = start.replace(second=0, microsecond=0)
+        day_start = aligned.replace(hour=start_hour, minute=0)
+        day_start = day_start - timedelta(minutes=day_start.minute % step)
+        day_end = aligned.replace(hour=end_hour, minute=0)
+        best = None
+        best_energy = -1
+        candidate = day_start
+        duration = timedelta(minutes=session_len)
+        while candidate + duration <= day_end:
+            if not self._conflicts(candidate, candidate + duration, events):
+                energy = (
+                    energy_curve[candidate.hour]
+                    if energy_curve and len(energy_curve) == 24
+                    else 1
+                )
+                if energy > best_energy:
+                    best_energy = energy
+                    best = candidate
+            candidate += timedelta(minutes=step)
+        return best or start
+
     def _session_length(self, difficulty: int, priority: int, urgency: int) -> int:
         """Calculate the focus session length with optional intelligent scaling.
 
@@ -393,6 +440,10 @@ class TaskPlanner:
         now = self._next_work_time(datetime.combine(start_day, time(hour=preferred)))
         if now.hour < preferred:
             now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
+        free_today = self._free_minutes(now.date(), events)
+        required_today = needed * session_len + short_break * (needed - 1)
+        if required_today <= free_today and due <= now.date() + timedelta(days=1):
+            target_per_day = max_per_day
         sessions: list[tuple[datetime, datetime]] = []
         since_break = 0
         per_day = 0
@@ -417,6 +468,7 @@ class TaskPlanner:
             start = self._prefer_high_energy(
                 start, difficulty, priority, session_len, he_start, he_end
             )
+            start = self._best_energy_slot(start, session_len, events, energy_curve)
             if start != now:
                 now = self._next_work_time(start)
                 start = now
