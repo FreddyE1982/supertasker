@@ -50,23 +50,28 @@ refresh_categories()
 refresh_tasks()
 
 
-tabs = st.tabs([
-    "Manage Appointments",
-    "Manage Tasks",
-    "Calendar",
-    "Manage Categories",
-])
+tabs = st.tabs(
+    [
+        "Manage Appointments",
+        "Manage Tasks",
+        "Calendar",
+        "Manage Categories",
+    ]
+)
 
 with tabs[0]:
     if st.button("Refresh", key="refresh-btn"):
-        refresh(); refresh_categories()
+        refresh()
+        refresh_categories()
 
     st.header("Create Appointment")
     with st.form("create-form"):
         title = st.text_input("Title", key="create-title")
         description = st.text_input("Description", key="create-description")
         cat_opts = {c["name"]: c["id"] for c in st.session_state["categories"]}
-        cat_name = st.selectbox("Category", ["None"] + list(cat_opts.keys()), key="create-cat")
+        cat_name = st.selectbox(
+            "Category", ["None"] + list(cat_opts.keys()), key="create-cat"
+        )
         category_id = cat_opts.get(cat_name)
         start_date = st.date_input("Start Date", key="create-start-date")
         start_time = st.time_input("Start Time", key="create-start-time")
@@ -86,7 +91,8 @@ with tabs[0]:
             resp = requests.post(f"{API_URL}/appointments", json=data)
             if resp.status_code == 200:
                 st.success("Created")
-                refresh(); refresh_categories()
+                refresh()
+                refresh_categories()
             else:
                 st.error("Error creating appointment")
 
@@ -106,10 +112,19 @@ with tabs[0]:
                     key=f'desc_{appt["id"]}',
                 )
                 cat_opts = {c["name"]: c["id"] for c in st.session_state["categories"]}
-                current_name = next((c["name"] for c in st.session_state["categories"] if c["id"] == appt.get("category_id")), "None")
+                current_name = next(
+                    (
+                        c["name"]
+                        for c in st.session_state["categories"]
+                        if c["id"] == appt.get("category_id")
+                    ),
+                    "None",
+                )
                 options = ["None"] + list(cat_opts.keys())
                 idx = options.index(current_name) if current_name in options else 0
-                cat_name = st.selectbox("Category", options, index=idx, key=f'cat_{appt["id"]}')
+                cat_name = st.selectbox(
+                    "Category", options, index=idx, key=f'cat_{appt["id"]}'
+                )
                 category_id = cat_opts.get(cat_name)
                 start_date = st.date_input(
                     "Start Date",
@@ -146,14 +161,16 @@ with tabs[0]:
                     )
                     if resp.status_code == 200:
                         st.success("Updated")
-                        refresh(); refresh_categories()
+                        refresh()
+                        refresh_categories()
                     else:
                         st.error("Error updating")
             if st.button("Delete", key=f'del_{appt["id"]}'):
                 resp = requests.delete(f'{API_URL}/appointments/{appt["id"]}')
                 if resp.status_code == 200:
                     st.success("Deleted")
-                    refresh(); refresh_categories()
+                    refresh()
+                    refresh_categories()
                 else:
                     st.error("Error deleting")
 
@@ -165,12 +182,20 @@ with tabs[1]:
     with st.form("plan-form"):
         p_title = st.text_input("Title", key="plan-title")
         p_desc = st.text_input("Description", key="plan-desc")
-        p_diff = st.number_input("Estimated Difficulty", min_value=1, max_value=5, step=1, key="plan-diff")
-        p_priority = st.number_input("Priority", value=3, min_value=1, max_value=5, step=1, key="plan-priority")
-        p_duration = st.number_input("Estimated Duration Minutes", min_value=1, step=1, key="plan-dur")
+        p_diff = st.number_input(
+            "Estimated Difficulty", min_value=1, max_value=5, step=1, key="plan-diff"
+        )
+        p_priority = st.number_input(
+            "Priority", value=3, min_value=1, max_value=5, step=1, key="plan-priority"
+        )
+        p_duration = st.number_input(
+            "Estimated Duration Minutes", min_value=1, step=1, key="plan-dur"
+        )
         p_due = st.date_input("Due Date", key="plan-due")
         cat_opts = {c["name"]: c["id"] for c in st.session_state["categories"]}
-        cat_name = st.selectbox("Category", ["None"] + list(cat_opts.keys()), key="plan-cat")
+        cat_name = st.selectbox(
+            "Category", ["None"] + list(cat_opts.keys()), key="plan-cat"
+        )
         p_category_id = cat_opts.get(cat_name)
         he_start = st.number_input(
             "High Energy Start Hour",
@@ -216,8 +241,16 @@ with tabs[1]:
         )
         p_int_buffer = st.checkbox(
             "Intelligent Transition Buffer",
-            value=os.getenv("INTELLIGENT_TRANSITION_BUFFER", "0") in ["1", "true", "True"],
+            value=os.getenv("INTELLIGENT_TRANSITION_BUFFER", "0")
+            in ["1", "true", "True"],
             key="plan-int-buffer",
+        )
+        p_spaced = st.number_input(
+            "Spaced Repetition Factor",
+            min_value=1.0,
+            value=float(os.getenv("SPACED_REPETITION_FACTOR", "1")),
+            step=0.1,
+            key="plan-spaced",
         )
         if st.form_submit_button("Plan"):
             data = {
@@ -232,10 +265,11 @@ with tabs[1]:
                 "fatigue_break_factor": float(p_fatigue),
                 "energy_curve": [int(x) for x in p_curve.split(",") if x.strip()],
                 "energy_day_order_weight": float(p_day_weight),
-            "transition_buffer_minutes": int(p_buffer),
-            "intelligent_transition_buffer": bool(p_int_buffer),
-            "category_id": p_category_id,
-        }
+                "transition_buffer_minutes": int(p_buffer),
+                "intelligent_transition_buffer": bool(p_int_buffer),
+                "spaced_repetition_factor": float(p_spaced),
+                "category_id": p_category_id,
+            }
             r = requests.post(f"{API_URL}/tasks/plan", json=data)
             if r.status_code == 200:
                 st.success("Planned")
@@ -253,11 +287,19 @@ with tabs[1]:
         end_date = st.date_input("End Date", key="task-end-date")
         end_time = st.time_input("End Time", key="task-end-time")
         cat_opts = {c["name"]: c["id"] for c in st.session_state["categories"]}
-        t_cat = st.selectbox("Category", ["None"] + list(cat_opts.keys()), key="task-cat")
+        t_cat = st.selectbox(
+            "Category", ["None"] + list(cat_opts.keys()), key="task-cat"
+        )
         t_cat_id = cat_opts.get(t_cat)
-        perceived = st.number_input("Perceived Difficulty", value=0, step=1, key="task-perceived")
-        estimated = st.number_input("Estimated Difficulty", value=0, step=1, key="task-estimated")
-        priority = st.number_input("Priority", value=3, min_value=1, max_value=5, step=1, key="task-priority")
+        perceived = st.number_input(
+            "Perceived Difficulty", value=0, step=1, key="task-perceived"
+        )
+        estimated = st.number_input(
+            "Estimated Difficulty", value=0, step=1, key="task-estimated"
+        )
+        priority = st.number_input(
+            "Priority", value=3, min_value=1, max_value=5, step=1, key="task-priority"
+        )
         worked_on = st.checkbox("Worked On", value=False, key="task-worked")
         paused = st.checkbox("Paused", value=False, key="task-paused")
         submitted = st.form_submit_button("Create")
@@ -287,32 +329,96 @@ with tabs[1]:
     st.header("Tasks")
     for task in st.session_state["tasks"]:
         with st.expander(task["title"]):
-            st.write(
-                f"Due: {task['due_date']} | Priority: {task.get('priority', 3)}"
-            )
+            st.write(f"Due: {task['due_date']} | Priority: {task.get('priority', 3)}")
 
             edit_tab, sub_tab, fs_tab = st.tabs(["Edit", "Subtasks", "Focus Sessions"])
 
             with edit_tab:
                 with st.form(f'task-edit-{task["id"]}'):
-                    title = st.text_input("Title", value=task["title"], key=f'task_title_{task["id"]}')
-                    description = st.text_input("Description", value=task.get("description", ""), key=f'task_description_{task["id"]}')
-                    due = st.date_input("Due Date", value=date.fromisoformat(task["due_date"]), key=f'due_{task["id"]}')
-                    sdate = st.date_input("Start Date", value=date.fromisoformat(task.get("start_date", task["due_date"])), key=f'sdate_{task["id"]}')
-                    stime = st.time_input("Start Time", value=dtime.fromisoformat(task.get("start_time", "00:00:00")), key=f'stime_{task["id"]}')
-                    edate = st.date_input("End Date", value=date.fromisoformat(task.get("end_date", task["due_date"])), key=f'edate_{task["id"]}')
-                    etime = st.time_input("End Time", value=dtime.fromisoformat(task.get("end_time", "00:00:00")), key=f'etime_{task["id"]}')
-                    cat_opts = {c["name"]: c["id"] for c in st.session_state["categories"]}
-                    current_name = next((c["name"] for c in st.session_state["categories"] if c["id"] == task.get("category_id")), "None")
+                    title = st.text_input(
+                        "Title", value=task["title"], key=f'task_title_{task["id"]}'
+                    )
+                    description = st.text_input(
+                        "Description",
+                        value=task.get("description", ""),
+                        key=f'task_description_{task["id"]}',
+                    )
+                    due = st.date_input(
+                        "Due Date",
+                        value=date.fromisoformat(task["due_date"]),
+                        key=f'due_{task["id"]}',
+                    )
+                    sdate = st.date_input(
+                        "Start Date",
+                        value=date.fromisoformat(
+                            task.get("start_date", task["due_date"])
+                        ),
+                        key=f'sdate_{task["id"]}',
+                    )
+                    stime = st.time_input(
+                        "Start Time",
+                        value=dtime.fromisoformat(task.get("start_time", "00:00:00")),
+                        key=f'stime_{task["id"]}',
+                    )
+                    edate = st.date_input(
+                        "End Date",
+                        value=date.fromisoformat(
+                            task.get("end_date", task["due_date"])
+                        ),
+                        key=f'edate_{task["id"]}',
+                    )
+                    etime = st.time_input(
+                        "End Time",
+                        value=dtime.fromisoformat(task.get("end_time", "00:00:00")),
+                        key=f'etime_{task["id"]}',
+                    )
+                    cat_opts = {
+                        c["name"]: c["id"] for c in st.session_state["categories"]
+                    }
+                    current_name = next(
+                        (
+                            c["name"]
+                            for c in st.session_state["categories"]
+                            if c["id"] == task.get("category_id")
+                        ),
+                        "None",
+                    )
                     options = ["None"] + list(cat_opts.keys())
                     idx = options.index(current_name) if current_name in options else 0
-                    category_name = st.selectbox("Category", options, index=idx, key=f'task_cat_{task["id"]}')
+                    category_name = st.selectbox(
+                        "Category", options, index=idx, key=f'task_cat_{task["id"]}'
+                    )
                     category_id = cat_opts.get(category_name)
-                    pdiff = st.number_input("Perceived Difficulty", value=task.get("perceived_difficulty", 0) or 0, key=f'pdiff_{task["id"]}', step=1)
-                    ediff = st.number_input("Estimated Difficulty", value=task.get("estimated_difficulty", 0) or 0, key=f'ediff_{task["id"]}', step=1)
-                    prio = st.number_input("Priority", value=task.get("priority", 3) or 3, min_value=1, max_value=5, step=1, key=f'prio_{task["id"]}')
-                    wo = st.checkbox("Worked On", value=task.get("worked_on", False), key=f'wo_{task["id"]}')
-                    pa = st.checkbox("Paused", value=task.get("paused", False), key=f'pa_{task["id"]}')
+                    pdiff = st.number_input(
+                        "Perceived Difficulty",
+                        value=task.get("perceived_difficulty", 0) or 0,
+                        key=f'pdiff_{task["id"]}',
+                        step=1,
+                    )
+                    ediff = st.number_input(
+                        "Estimated Difficulty",
+                        value=task.get("estimated_difficulty", 0) or 0,
+                        key=f'ediff_{task["id"]}',
+                        step=1,
+                    )
+                    prio = st.number_input(
+                        "Priority",
+                        value=task.get("priority", 3) or 3,
+                        min_value=1,
+                        max_value=5,
+                        step=1,
+                        key=f'prio_{task["id"]}',
+                    )
+                    wo = st.checkbox(
+                        "Worked On",
+                        value=task.get("worked_on", False),
+                        key=f'wo_{task["id"]}',
+                    )
+                    pa = st.checkbox(
+                        "Paused",
+                        value=task.get("paused", False),
+                        key=f'pa_{task["id"]}',
+                    )
                     if st.form_submit_button("Update"):
                         data = {
                             "title": title,
@@ -329,9 +435,7 @@ with tabs[1]:
                             "paused": pa,
                             "category_id": category_id,
                         }
-                        resp = requests.put(
-                            f"{API_URL}/tasks/{task['id']}", json=data
-                        )
+                        resp = requests.put(f"{API_URL}/tasks/{task['id']}", json=data)
                         if resp.status_code == 200:
                             st.success("Updated")
                             refresh_tasks()
@@ -340,18 +444,31 @@ with tabs[1]:
             with sub_tab:
                 for sub in task.get("subtasks", []):
                     with st.form(f'subtask-edit-{task["id"]}-{sub["id"]}'):
-                        stitle = st.text_input("Title", value=sub["title"], key=f'subtitle_{task["id"]}_{sub["id"]}')
-                        scomp = st.checkbox("Completed", value=sub.get("completed", False), key=f'subcomp_{task["id"]}_{sub["id"]}')
+                        stitle = st.text_input(
+                            "Title",
+                            value=sub["title"],
+                            key=f'subtitle_{task["id"]}_{sub["id"]}',
+                        )
+                        scomp = st.checkbox(
+                            "Completed",
+                            value=sub.get("completed", False),
+                            key=f'subcomp_{task["id"]}_{sub["id"]}',
+                        )
                         if st.form_submit_button("Update"):
                             data = {"title": stitle, "completed": scomp}
-                            r = requests.put(f"{API_URL}/tasks/{task['id']}/subtasks/{sub['id']}", json=data)
+                            r = requests.put(
+                                f"{API_URL}/tasks/{task['id']}/subtasks/{sub['id']}",
+                                json=data,
+                            )
                             if r.status_code == 200:
                                 st.success("Updated")
                                 refresh_tasks()
                             else:
                                 st.error("Error updating subtask")
                     if st.button("Delete", key=f'subdel_{task["id"]}_{sub["id"]}'):
-                        r = requests.delete(f"{API_URL}/tasks/{task['id']}/subtasks/{sub['id']}")
+                        r = requests.delete(
+                            f"{API_URL}/tasks/{task['id']}/subtasks/{sub['id']}"
+                        )
                         if r.status_code == 200:
                             st.success("Deleted")
                             refresh_tasks()
@@ -361,7 +478,9 @@ with tabs[1]:
                     new_sub = st.text_input("Title", key=f'new_sub_{task["id"]}')
                     if st.form_submit_button("Add Subtask"):
                         data = {"title": new_sub, "completed": False}
-                        r = requests.post(f"{API_URL}/tasks/{task['id']}/subtasks", json=data)
+                        r = requests.post(
+                            f"{API_URL}/tasks/{task['id']}/subtasks", json=data
+                        )
                         if r.status_code == 200:
                             st.success("Created")
                             refresh_tasks()
@@ -389,7 +508,9 @@ with tabs[1]:
                         )
                         if st.form_submit_button("Update"):
                             data = {
-                                "end_time": datetime.combine(end_date, end_time).isoformat(),
+                                "end_time": datetime.combine(
+                                    end_date, end_time
+                                ).isoformat(),
                                 "completed": completed,
                             }
                             r = requests.put(
@@ -440,9 +561,12 @@ with tabs[1]:
 
 with tabs[2]:
     view = st.selectbox(
-        "View", ["Day", "Week", "Two Weeks", "Month"],
-        index=["Day", "Week", "Two Weeks", "Month"].index(st.session_state["calendar_view"]),
-        key="view-select"
+        "View",
+        ["Day", "Week", "Two Weeks", "Month"],
+        index=["Day", "Week", "Two Weeks", "Month"].index(
+            st.session_state["calendar_view"]
+        ),
+        key="view-select",
     )
     st.session_state["calendar_view"] = view
 
@@ -541,7 +665,11 @@ with tabs[2]:
         "initialView": view_map[view],
         "editable": True,
         "views": {
-            "twoweek": {"type": "timeGrid", "duration": {"weeks": 2}, "buttonText": "2 weeks"}
+            "twoweek": {
+                "type": "timeGrid",
+                "duration": {"weeks": 2},
+                "buttonText": "2 weeks",
+            }
         },
         "height": 650,
     }
@@ -600,7 +728,10 @@ with tabs[3]:
     st.header("Categories")
     for cat in st.session_state["categories"]:
         info = f"{cat['name']}"
-        if cat.get("preferred_start_hour") is not None and cat.get("preferred_end_hour") is not None:
+        if (
+            cat.get("preferred_start_hour") is not None
+            and cat.get("preferred_end_hour") is not None
+        ):
             info += f" ({cat['preferred_start_hour']}-{cat['preferred_end_hour']})"
         st.markdown(
             f"<div style='display:flex;align-items:center;'><div style='width:20px;height:20px;background:{cat['color']};margin-right:5px;'></div>{info}</div>",

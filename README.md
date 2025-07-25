@@ -156,6 +156,7 @@ settings allow advanced tuning:
 - ``CATEGORY_DAY_WEIGHT`` – additional weight favouring days that already contain events of the same category (default 0)
 - ``PRODUCTIVITY_HISTORY_WEIGHT`` – weight of past session completion rates per hour when choosing slots (default 0)
 - ``PRODUCTIVITY_HALF_LIFE_DAYS`` – days until historical weights halve when calculating productivity (default 30)
+- ``SPACED_REPETITION_FACTOR`` – multiply the gap between consecutive sessions by this factor for spaced repetition (default 1 disables spacing)
 - ``preferred_start_hour`` and ``preferred_end_hour`` – optional fields on categories restricting scheduling to this window
 
 More difficult or high priority tasks are placed earlier in the day while

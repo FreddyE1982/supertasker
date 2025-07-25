@@ -844,8 +844,7 @@ class TaskPlanner:
                     self._free_minutes(day, events, buffer_minutes)
                     + energy_weight
                     * self._available_energy(day, events, energy_curve, buffer_minutes)
-                    + category_weight
-                    * self._category_minutes(day, category_id)
+                    + category_weight * self._category_minutes(day, category_id)
                 ),
                 reverse=True,
             )
@@ -869,6 +868,7 @@ class TaskPlanner:
         intelligent_buffer: bool | None = None,
         productivity_weight: float | None = None,
         productivity_half_life: int | None = None,
+        spaced_repetition_factor: float | None = None,
     ) -> list[tuple[datetime, datetime]]:
         urgency = self._urgency(due)
         session_len = self._session_length(difficulty, priority, urgency)
@@ -876,6 +876,14 @@ class TaskPlanner:
         long_interval = int(os.getenv("SESSIONS_BEFORE_LONG_BREAK", "4"))
         max_per_day = int(os.getenv("MAX_SESSIONS_PER_DAY", "4"))
         needed = (duration + session_len - 1) // session_len
+
+        spaced_factor = (
+            spaced_repetition_factor
+            if spaced_repetition_factor is not None
+            else float(os.getenv("SPACED_REPETITION_FACTOR", "1"))
+        )
+        gap_days = 1.0
+        start_hour = int(os.getenv("WORK_START_HOUR", "9"))
 
         cat_start, cat_end = self._category_hours(category_id)
 
@@ -1217,6 +1225,32 @@ class TaskPlanner:
             )
             if now.hour < preferred:
                 now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
+            if spaced_factor > 1:
+                candidate = now.date() + timedelta(days=round(gap_days))
+                if candidate <= last_work_day:
+                    candidate = self._next_day_by_free_time(
+                        candidate,
+                        last_work_day,
+                        events,
+                        work_days,
+                        energy_curve,
+                        energy_day_order_weight,
+                        category_id,
+                        category_day_weight,
+                        buffer_minutes,
+                    )
+                    now = self._next_work_time(
+                        datetime.combine(candidate, time(hour=start_hour)),
+                        cat_start,
+                        cat_end,
+                    )
+                    if now.hour < preferred:
+                        now = now.replace(
+                            hour=preferred, minute=0, second=0, microsecond=0
+                        )
+                    per_day = 0
+                    since_break = 0
+                    gap_days *= spaced_factor
             since_break = (since_break + 1) % long_interval
             per_day += 1
             daily_counts[start.date()] = daily_counts.get(start.date(), 0) + 1
@@ -1260,6 +1294,7 @@ class TaskPlanner:
             data.intelligent_transition_buffer,
             data.productivity_history_weight,
             data.productivity_half_life_days,
+            data.spaced_repetition_factor,
         )
 
         for idx, (s, e) in enumerate(sessions, start=1):
