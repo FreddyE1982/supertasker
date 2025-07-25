@@ -883,6 +883,12 @@ class TaskPlanner:
         category_id: int | None = None,
         category_weight: float | None = None,
         buffer_minutes: int = 0,
+        daily_counts: dict[date, int] | None = None,
+        difficulty_loads: dict[date, int] | None = None,
+        energy_loads: dict[date, int] | None = None,
+        session_count_weight: float | None = None,
+        difficulty_load_weight: float | None = None,
+        energy_load_weight: float | None = None,
     ) -> date:
         """Return the next planning day using free time and optional energy weighting."""
         days: list[date] = []
@@ -896,17 +902,38 @@ class TaskPlanner:
                 status_code=400, detail="Cannot schedule before due date"
             )
         energy_flag = os.getenv("INTELLIGENT_DAY_ORDER", "0") in {"1", "true", "True"}
-        if energy_flag or category_weight:
+        if (
+            energy_flag
+            or category_weight
+            or session_count_weight
+            or difficulty_load_weight
+            or energy_load_weight
+        ):
             if energy_weight is None:
                 energy_weight = float(os.getenv("ENERGY_DAY_ORDER_WEIGHT", "0"))
             if category_weight is None:
                 category_weight = float(os.getenv("CATEGORY_DAY_WEIGHT", "0"))
+            if session_count_weight is None:
+                session_count_weight = float(os.getenv("SESSION_COUNT_WEIGHT", "0"))
+            if difficulty_load_weight is None:
+                difficulty_load_weight = float(os.getenv("DIFFICULTY_LOAD_WEIGHT", "0"))
+            if energy_load_weight is None:
+                energy_load_weight = float(os.getenv("ENERGY_LOAD_WEIGHT", "0"))
+            if daily_counts is None:
+                daily_counts = self._session_counts()
+            if difficulty_loads is None:
+                difficulty_loads = self._difficulty_loads()
+            if energy_loads is None:
+                energy_loads = self._energy_loads()
             days.sort(
                 key=lambda day: (
                     self._free_minutes(day, events, buffer_minutes)
                     + energy_weight
                     * self._available_energy(day, events, energy_curve, buffer_minutes)
                     + category_weight * self._category_minutes(day, category_id)
+                    - session_count_weight * daily_counts.get(day, 0)
+                    - difficulty_load_weight * difficulty_loads.get(day, 0)
+                    - energy_load_weight * energy_loads.get(day, 0)
                 ),
                 reverse=True,
             )
@@ -932,6 +959,9 @@ class TaskPlanner:
         productivity_half_life: int | None = None,
         category_productivity_weight: float | None = None,
         spaced_repetition_factor: float | None = None,
+        session_count_weight: float | None = None,
+        difficulty_load_weight: float | None = None,
+        energy_load_weight: float | None = None,
     ) -> list[tuple[datetime, datetime]]:
         urgency = self._urgency(due)
         session_len = self._session_length(difficulty, priority, urgency)
@@ -989,6 +1019,12 @@ class TaskPlanner:
         difficulty_loads = self._difficulty_loads()
         energy_limit = int(os.getenv("DAILY_ENERGY_LIMIT", "0"))
         energy_loads = self._energy_loads()
+        if session_count_weight is None:
+            session_count_weight = float(os.getenv("SESSION_COUNT_WEIGHT", "0"))
+        if difficulty_load_weight is None:
+            difficulty_load_weight = float(os.getenv("DIFFICULTY_LOAD_WEIGHT", "0"))
+        if energy_load_weight is None:
+            energy_load_weight = float(os.getenv("ENERGY_LOAD_WEIGHT", "0"))
         if category_day_weight is None:
             category_day_weight = float(os.getenv("CATEGORY_DAY_WEIGHT", "0"))
 
@@ -1039,6 +1075,12 @@ class TaskPlanner:
             category_id,
             category_day_weight,
             buffer_minutes,
+            daily_counts,
+            difficulty_loads,
+            energy_loads,
+            session_count_weight,
+            difficulty_load_weight,
+            energy_load_weight,
         )
         deep_threshold = int(os.getenv("DEEP_WORK_THRESHOLD", "0"))
         if deep_threshold and difficulty >= deep_threshold:
@@ -1108,6 +1150,12 @@ class TaskPlanner:
                     category_id,
                     category_day_weight,
                     buffer_minutes,
+                    daily_counts,
+                    difficulty_loads,
+                    energy_loads,
+                    session_count_weight,
+                    difficulty_load_weight,
+                    energy_load_weight,
                 )
                 now = self._next_work_time(
                     datetime.combine(next_day, time(hour=start_hour)),
@@ -1134,6 +1182,12 @@ class TaskPlanner:
                     category_id,
                     category_day_weight,
                     buffer_minutes,
+                    daily_counts,
+                    difficulty_loads,
+                    energy_loads,
+                    session_count_weight,
+                    difficulty_load_weight,
+                    energy_load_weight,
                 )
                 now = self._next_work_time(
                     datetime.combine(next_day, time(hour=start_hour)),
@@ -1161,6 +1215,12 @@ class TaskPlanner:
                     category_id,
                     category_day_weight,
                     buffer_minutes,
+                    daily_counts,
+                    difficulty_loads,
+                    energy_loads,
+                    session_count_weight,
+                    difficulty_load_weight,
+                    energy_load_weight,
                 )
                 now = self._next_work_time(
                     datetime.combine(next_day, time(hour=start_hour)),
@@ -1260,6 +1320,12 @@ class TaskPlanner:
                         category_id,
                         category_day_weight,
                         buffer_minutes,
+                        daily_counts,
+                        difficulty_loads,
+                        energy_loads,
+                        session_count_weight,
+                        difficulty_load_weight,
+                        energy_load_weight,
                     )
                     now = self._next_work_time(
                         datetime.combine(next_day, time(hour=start_hour)),
@@ -1307,6 +1373,12 @@ class TaskPlanner:
                         category_id,
                         category_day_weight,
                         buffer_minutes,
+                        daily_counts,
+                        difficulty_loads,
+                        energy_loads,
+                        session_count_weight,
+                        difficulty_load_weight,
+                        energy_load_weight,
                     )
                     now = self._next_work_time(
                         datetime.combine(candidate, time(hour=start_hour)),
@@ -1365,6 +1437,9 @@ class TaskPlanner:
             data.productivity_half_life_days,
             data.category_productivity_weight,
             data.spaced_repetition_factor,
+            data.session_count_weight,
+            data.difficulty_load_weight,
+            data.energy_load_weight,
         )
 
         for idx, (s, e) in enumerate(sessions, start=1):

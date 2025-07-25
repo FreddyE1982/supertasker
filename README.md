@@ -161,6 +161,9 @@ settings allow advanced tuning:
 - ``PRODUCTIVITY_HALF_LIFE_DAYS`` – days until historical weights halve when calculating productivity (default 30)
 - ``CATEGORY_PRODUCTIVITY_WEIGHT`` – weight of category-specific completion rates when selecting slots (default 0)
 - ``SPACED_REPETITION_FACTOR`` – multiply the gap between consecutive sessions by this factor for spaced repetition (default 1 disables spacing)
+- ``SESSION_COUNT_WEIGHT`` – penalty per already scheduled session on a day when choosing planning days (default 0)
+- ``DIFFICULTY_LOAD_WEIGHT`` – penalty based on total difficulty already scheduled on a day (default 0)
+- ``ENERGY_LOAD_WEIGHT`` – penalty based on total energy load already scheduled on a day (default 0)
 - ``preferred_start_hour`` and ``preferred_end_hour`` – optional fields on categories restricting scheduling to this window
 - ``energy_curve`` – optional 24 comma values on categories weighting hours for
   category tasks

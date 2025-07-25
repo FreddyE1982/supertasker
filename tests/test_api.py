@@ -1372,3 +1372,31 @@ def test_spaced_repetition(monkeypatch):
     assert len(sessions) == 2
     days = [datetime.fromisoformat(s["start_time"]).date() for s in sessions]
     assert (days[1] - days[0]).days >= 1
+
+
+@pytest.mark.env(INTELLIGENT_DAY_ORDER="1", SESSION_COUNT_WEIGHT="5")
+def test_session_count_weight(monkeypatch):
+    due = TODAY + timedelta(days=2)
+    base = {
+        "title": "Base1",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": due.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=base)
+    assert r.status_code == 200
+    first_task = r.json()
+    first_day = datetime.fromisoformat(
+        requests.get(f"{API_URL}/tasks/{first_task['id']}/focus_sessions").json()[0]["start_time"]
+    ).date()
+
+    second = base | {"title": "Base2", "session_count_weight": 5}
+    r = requests.post(f"{API_URL}/tasks/plan", json=second)
+    assert r.status_code == 200
+    second_task = r.json()
+    second_day = datetime.fromisoformat(
+        requests.get(f"{API_URL}/tasks/{second_task['id']}/focus_sessions").json()[0]["start_time"]
+    ).date()
+    assert second_day > first_day
