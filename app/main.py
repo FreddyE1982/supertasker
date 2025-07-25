@@ -400,6 +400,52 @@ class TaskPlanner:
                 t = block_end
         return score
 
+    def _day_free_blocks(
+        self, day: date, events: list[tuple[datetime, datetime]]
+    ) -> list[tuple[datetime, datetime]]:
+        """Return free intervals within the working hours of ``day``."""
+        start_hour = int(os.getenv("WORK_START_HOUR", "9"))
+        end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+        lunch_start = int(os.getenv("LUNCH_START_HOUR", "12"))
+        lunch_dur = int(os.getenv("LUNCH_DURATION_MINUTES", "60"))
+
+        blocks = [
+            (
+                datetime.combine(day, time(hour=start_hour)),
+                datetime.combine(day, time(hour=lunch_start)),
+            ),
+            (
+                datetime.combine(day, time(hour=lunch_start))
+                + timedelta(minutes=lunch_dur),
+                datetime.combine(day, time(hour=end_hour)),
+            ),
+        ]
+        for s, e in sorted(events, key=lambda x: x[0]):
+            if s.date() > day or e.date() < day:
+                continue
+            new_blocks: list[tuple[datetime, datetime]] = []
+            for b_start, b_end in blocks:
+                if e <= b_start or s >= b_end:
+                    new_blocks.append((b_start, b_end))
+                else:
+                    if b_start < s:
+                        new_blocks.append((b_start, s))
+                    if e < b_end:
+                        new_blocks.append((e, b_end))
+            blocks = new_blocks
+            if not blocks:
+                break
+        return blocks
+
+    def _largest_free_block(
+        self, day: date, events: list[tuple[datetime, datetime]]
+    ) -> tuple[datetime, datetime] | None:
+        """Return the largest free interval on ``day`` if available."""
+        blocks = self._day_free_blocks(day, events)
+        if not blocks:
+            return None
+        return max(blocks, key=lambda b: b[1] - b[0])
+
     def _next_day_by_free_time(
         self,
         start: date,
@@ -504,6 +550,34 @@ class TaskPlanner:
             energy_curve,
             energy_day_order_weight,
         )
+        deep_threshold = int(os.getenv("DEEP_WORK_THRESHOLD", "0"))
+        if deep_threshold and difficulty >= deep_threshold:
+            total_needed = needed * session_len + short_break * (needed - 1)
+            day = start_day
+            while day <= last_work_day:
+                if day.weekday() not in work_days:
+                    day += timedelta(days=1)
+                    continue
+                block = self._largest_free_block(day, events)
+                if block and (block[1] - block[0]).total_seconds() // 60 >= total_needed:
+                    now = max(block[0], datetime.combine(day, time(hour=preferred)))
+                    sessions: list[tuple[datetime, datetime]] = []
+                    since_break = 0
+                    for _ in range(needed):
+                        start = now
+                        end = start + timedelta(minutes=session_len)
+                        sessions.append((start, end))
+                        events.append((start, end))
+                        now = end
+                        if len(sessions) == needed:
+                            break
+                        break_len = long_break if since_break == long_interval - 1 else short_break
+                        break_end = now + timedelta(minutes=break_len)
+                        events.append((now, break_end))
+                        now = break_end
+                        since_break = (since_break + 1) % long_interval
+                    return sessions
+                day += timedelta(days=1)
         now = self._next_work_time(datetime.combine(start_day, time(hour=preferred)))
         if now.hour < preferred:
             now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
