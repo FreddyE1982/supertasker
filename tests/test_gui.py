@@ -42,6 +42,16 @@ def test_full_gui_interaction():
     try:
         at = AppTest.from_file("streamlit_app.py").run()
 
+        # create category
+        cat_tab = next(t for t in at.tabs if t.label == "Manage Categories")
+        at = cat_tab.text_input(key="cat-name").input("Work").run()
+        at = cat_tab.color_picker(key="cat-color").set_value("#ff0000").run()
+        at = cat_tab.number_input(key="cat-start").set_value(9).run()
+        at = cat_tab.number_input(key="cat-end").set_value(17).run()
+        at = cat_tab.text_input(key="cat-energy").input(",".join(["1"] * 24)).run()
+        at = cat_tab.button(key="FormSubmitter:cat-form-Create").click().run()
+        assert "Created" in [s.value for s in at.success]
+
         # create appointment
         at = at.text_input(key="create-title").input("Meeting").run()
         at = at.text_input(key="create-description").input("Discuss project").run()

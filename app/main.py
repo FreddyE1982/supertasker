@@ -128,6 +128,35 @@ class TaskPlanner:
             return None, None
         return cat.preferred_start_hour, cat.preferred_end_hour
 
+    def _category_energy_curve(self, category_id: int | None) -> list[int] | None:
+        """Return the energy curve defined on the category if available."""
+        if category_id is None:
+            return None
+        cat = (
+            self.db.query(models.Category)
+            .filter(models.Category.id == category_id)
+            .first()
+        )
+        if not cat or not cat.energy_curve:
+            return None
+        try:
+            curve = [int(x) for x in cat.energy_curve.split(",")]
+            if len(curve) == 24:
+                return curve
+        except ValueError:
+            pass
+        return None
+
+    def _merge_energy_curves(
+        self, base: list[int] | None, category: list[int] | None
+    ) -> list[int] | None:
+        """Combine global and category energy curves."""
+        if base and len(base) == 24 and category and len(category) == 24:
+            return [b * c for b, c in zip(base, category)]
+        if category and len(category) == 24:
+            return category
+        return base
+
     def _session_counts(self) -> dict[date, int]:
         """Return the number of focus sessions already scheduled per day."""
         counts: dict[date, int] = {}
@@ -920,6 +949,8 @@ class TaskPlanner:
         start_hour = int(os.getenv("WORK_START_HOUR", "9"))
 
         cat_start, cat_end = self._category_hours(category_id)
+        cat_curve = self._category_energy_curve(category_id)
+        energy_curve = self._merge_energy_curves(energy_curve, cat_curve)
 
         he_start = (
             high_energy_start
@@ -1362,16 +1393,52 @@ class TaskPlanner:
 
 @app.post("/categories", response_model=schemas.Category)
 def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
-    db_cat = models.Category(**category.dict())
+    data = category.dict()
+    curve = data.pop("energy_curve", None)
+    if curve is not None:
+        data["energy_curve"] = ",".join(str(int(x)) for x in curve)
+    db_cat = models.Category(**data)
     db.add(db_cat)
     db.commit()
     db.refresh(db_cat)
+    if db_cat.energy_curve:
+        db_cat.energy_curve = [int(x) for x in db_cat.energy_curve.split(",")]
+    else:
+        db_cat.energy_curve = None
     return db_cat
 
 
 @app.get("/categories", response_model=list[schemas.Category])
 def list_categories(db: Session = Depends(get_db)):
-    return db.query(models.Category).all()
+    cats = db.query(models.Category).all()
+    for c in cats:
+        if c.energy_curve:
+            c.energy_curve = [int(x) for x in c.energy_curve.split(",")]
+        else:
+            c.energy_curve = None
+    return cats
+
+
+@app.put("/categories/{category_id}", response_model=schemas.Category)
+def update_category(
+    category_id: int, data: schemas.CategoryCreate, db: Session = Depends(get_db)
+):
+    db_cat = db.query(models.Category).filter(models.Category.id == category_id).first()
+    if not db_cat:
+        raise HTTPException(status_code=404, detail="Category not found")
+    payload = data.dict()
+    curve = payload.pop("energy_curve", None)
+    if curve is not None:
+        payload["energy_curve"] = ",".join(str(int(x)) for x in curve)
+    for field, value in payload.items():
+        setattr(db_cat, field, value)
+    db.commit()
+    db.refresh(db_cat)
+    if db_cat.energy_curve:
+        db_cat.energy_curve = [int(x) for x in db_cat.energy_curve.split(",")]
+    else:
+        db_cat.energy_curve = None
+    return db_cat
 
 
 @app.post("/appointments", response_model=schemas.Appointment)

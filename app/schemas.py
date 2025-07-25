@@ -7,6 +7,7 @@ class CategoryBase(BaseModel):
     color: str
     preferred_start_hour: int | None = None
     preferred_end_hour: int | None = None
+    energy_curve: list[int] | None = None
 
 
 class CategoryCreate(CategoryBase):
@@ -15,6 +16,7 @@ class CategoryCreate(CategoryBase):
 
 class Category(CategoryBase):
     id: int
+    energy_curve: list[int] | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
