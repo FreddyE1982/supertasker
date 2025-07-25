@@ -20,6 +20,7 @@ class Category(Base):
     color = Column(String, nullable=False)
     preferred_start_hour = Column(Integer, nullable=True)
     preferred_end_hour = Column(Integer, nullable=True)
+    energy_curve = Column(String, nullable=True)
 
 class Appointment(Base):
     __tablename__ = 'appointments'

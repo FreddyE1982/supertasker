@@ -719,12 +719,17 @@ with tabs[3]:
             step=1,
             key="cat-end",
         )
+        curve = st.text_input(
+            "Energy Curve (24 comma numbers)",
+            key="cat-energy",
+        )
         if st.form_submit_button("Create"):
             data = {
                 "name": name,
                 "color": color,
                 "preferred_start_hour": int(start_hour),
                 "preferred_end_hour": int(end_hour),
+                "energy_curve": [int(x) for x in curve.split(",") if x.strip()],
             }
             r = requests.post(f"{API_URL}/categories", json=data)
             if r.status_code == 200:
@@ -741,6 +746,8 @@ with tabs[3]:
             and cat.get("preferred_end_hour") is not None
         ):
             info += f" ({cat['preferred_start_hour']}-{cat['preferred_end_hour']})"
+        if cat.get("energy_curve"):
+            info += " [curve]"
         st.markdown(
             f"<div style='display:flex;align-items:center;'><div style='width:20px;height:20px;background:{cat['color']};margin-right:5px;'></div>{info}</div>",
             unsafe_allow_html=True,

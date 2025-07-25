@@ -809,6 +809,35 @@ def test_energy_curve_importance():
     assert high_hour < low_hour
 
 
+@pytest.mark.env(INTELLIGENT_SLOT_SELECTION="1")
+def test_category_energy_curve(monkeypatch):
+    cat = {
+        "name": "Evening",
+        "color": "#222222",
+        "energy_curve": [1 if i != 16 else 10 for i in range(24)],
+    }
+    r = requests.post(f"{API_URL}/categories", json=cat)
+    assert r.status_code == 200
+    cat_id = r.json()["id"]
+
+    data = {
+        "title": "CatCurve",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+        "category_id": cat_id,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    hour = datetime.fromisoformat(fs[0]["start_time"]).hour
+    assert hour == 16
+
+
 @pytest.mark.env(
     FATIGUE_BREAK_FACTOR="1",
     SHORT_BREAK_MINUTES="5",

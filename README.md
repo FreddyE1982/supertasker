@@ -72,6 +72,9 @@ planning tasks or appointments. The planner groups tasks of the same category
 close together when ``CATEGORY_CONTEXT_WINDOW`` provides enough room.
 Categories may also define ``preferred_start_hour`` and ``preferred_end_hour``
 so that tasks of that category are scheduled within a specific time window.
+Additionally ``energy_curve`` may specify 24 comma separated numbers giving
+relative energy levels for each hour. When set, the planner multiplies the
+general energy curve with this category curve for smarter time selection.
 
 ## Focus Session API
 
@@ -159,6 +162,8 @@ settings allow advanced tuning:
 - ``CATEGORY_PRODUCTIVITY_WEIGHT`` – weight of category-specific completion rates when selecting slots (default 0)
 - ``SPACED_REPETITION_FACTOR`` – multiply the gap between consecutive sessions by this factor for spaced repetition (default 1 disables spacing)
 - ``preferred_start_hour`` and ``preferred_end_hour`` – optional fields on categories restricting scheduling to this window
+- ``energy_curve`` – optional 24 comma values on categories weighting hours for
+  category tasks
 
 More difficult or high priority tasks are placed earlier in the day while
 easier ones are scheduled later, spreading sessions across days when needed for
