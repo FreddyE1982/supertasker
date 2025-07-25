@@ -42,6 +42,8 @@ class Task(Base):
     end_date = Column(Date, nullable=True)
     start_time = Column(Time, nullable=True)
     end_time = Column(Time, nullable=True)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
+    category = relationship("Category")
     perceived_difficulty = Column(Integer, nullable=True)
     estimated_difficulty = Column(Integer, nullable=True)
     estimated_duration_minutes = Column(Integer, nullable=True)

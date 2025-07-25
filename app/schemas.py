@@ -43,6 +43,7 @@ class TaskBase(BaseModel):
     end_date: date | None = None
     start_time: time | None = None
     end_time: time | None = None
+    category_id: int | None = None
     perceived_difficulty: int | None = None
     estimated_difficulty: int | None = None
     estimated_duration_minutes: int | None = None
@@ -62,6 +63,7 @@ class PlanTaskCreate(BaseModel):
     estimated_duration_minutes: int
     due_date: date
     priority: int = 3
+    category_id: int | None = None
     high_energy_start_hour: int | None = None
     high_energy_end_hour: int | None = None
     fatigue_break_factor: float | None = None
