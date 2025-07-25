@@ -307,6 +307,97 @@ class TaskPlanner:
             candidate += timedelta(minutes=step)
         return best or start
 
+    def _category_adjacent(
+        self,
+        start: datetime,
+        session_len: int,
+        category_id: int | None,
+        events: list[tuple[datetime, datetime]],
+        buffer_minutes: int,
+    ) -> datetime:
+        """Place session near other events of the same category if possible."""
+        if category_id is None:
+            return start
+
+        window = int(os.getenv("CATEGORY_CONTEXT_WINDOW", "60"))
+        day_start = datetime.combine(start.date(), time.min)
+        day_end = datetime.combine(start.date(), time.max)
+
+        same_cat: list[tuple[datetime, datetime]] = []
+
+        tasks = (
+            self.db.query(models.Task)
+            .filter(models.Task.category_id == category_id)
+            .filter(models.Task.start_date == start.date())
+            .filter(models.Task.start_time.isnot(None))
+            .filter(models.Task.end_date == start.date())
+            .filter(models.Task.end_time.isnot(None))
+            .all()
+        )
+        for t in tasks:
+            sdt = datetime.combine(t.start_date, t.start_time)
+            edt = datetime.combine(t.end_date, t.end_time)
+            same_cat.append((sdt, edt))
+        sessions = (
+            self.db.query(models.FocusSession)
+            .join(models.Task, models.Task.id == models.FocusSession.task_id)
+            .filter(models.Task.category_id == category_id)
+            .filter(models.FocusSession.start_time >= day_start)
+            .filter(models.FocusSession.start_time <= day_end)
+            .all()
+        )
+        for fs in sessions:
+            same_cat.append((fs.start_time, fs.end_time))
+
+        if not same_cat:
+            prev_day = start.date() - timedelta(days=1)
+            day_start = datetime.combine(prev_day, time.min)
+            day_end = datetime.combine(prev_day, time.max)
+            tasks = (
+                self.db.query(models.Task)
+                .filter(models.Task.category_id == category_id)
+                .filter(models.Task.start_date == prev_day)
+                .filter(models.Task.start_time.isnot(None))
+                .filter(models.Task.end_date == prev_day)
+                .filter(models.Task.end_time.isnot(None))
+                .all()
+            )
+            for t in tasks:
+                sdt = datetime.combine(t.start_date, t.start_time)
+                edt = datetime.combine(t.end_date, t.end_time)
+                same_cat.append((sdt, edt))
+            sessions = (
+                self.db.query(models.FocusSession)
+                .join(models.Task, models.Task.id == models.FocusSession.task_id)
+                .filter(models.Task.category_id == category_id)
+                .filter(models.FocusSession.start_time >= day_start)
+                .filter(models.FocusSession.start_time <= day_end)
+                .all()
+            )
+            for fs in sessions:
+                same_cat.append((fs.start_time, fs.end_time))
+            if not same_cat:
+                return start
+
+        latest_end = max(e for _, e in same_cat)
+        candidate = latest_end
+        candidate_end = candidate + timedelta(minutes=session_len)
+        if (
+            candidate_end - latest_end <= timedelta(minutes=window)
+            and not self._conflicts(candidate, candidate_end, events, buffer_minutes)
+        ):
+            return candidate
+
+        earliest_start = min(s for s, _ in same_cat)
+        candidate = earliest_start - timedelta(minutes=session_len)
+        if (
+            earliest_start - candidate <= timedelta(minutes=window)
+            and not self._conflicts(candidate, candidate + timedelta(minutes=session_len), events, buffer_minutes)
+            and candidate.date() == start.date()
+        ):
+            return candidate
+        return start
+
     def _session_length(self, difficulty: int, priority: int, urgency: int) -> int:
         """Calculate the focus session length with optional intelligent scaling.
 
@@ -524,6 +615,7 @@ class TaskPlanner:
         events: list[tuple[datetime, datetime]],
         difficulty: int,
         priority: int,
+        category_id: int | None = None,
         high_energy_start: int | None = None,
         high_energy_end: int | None = None,
         fatigue_break_factor: float | None = None,
@@ -691,6 +783,13 @@ class TaskPlanner:
             start = self._prefer_high_energy(
                 start, difficulty, priority, session_len, he_start, he_end
             )
+            start = self._category_adjacent(
+                start,
+                session_len,
+                category_id,
+                events,
+                buffer_minutes,
+            )
             start = self._best_energy_slot(
                 start, session_len, events, energy_curve, buffer_minutes
             )
@@ -782,6 +881,7 @@ class TaskPlanner:
             estimated_difficulty=data.estimated_difficulty,
             estimated_duration_minutes=data.estimated_duration_minutes,
             priority=data.priority,
+            category_id=data.category_id,
         )
         self.db.add(task)
         self.db.commit()
@@ -794,6 +894,7 @@ class TaskPlanner:
             events,
             data.estimated_difficulty,
             data.priority,
+            data.category_id,
             data.high_energy_start_hour,
             data.high_energy_end_hour,
             data.fatigue_break_factor,
@@ -883,6 +984,14 @@ def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
 
 @app.post('/tasks', response_model=schemas.Task)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
+    if task.category_id is not None:
+        cat = (
+            db.query(models.Category)
+            .filter(models.Category.id == task.category_id)
+            .first()
+        )
+        if cat is None:
+            raise HTTPException(status_code=404, detail="Category not found")
     db_task = models.Task(**task.dict())
     db.add(db_task)
     db.commit()
@@ -892,6 +1001,14 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
 
 @app.post('/tasks/plan', response_model=schemas.Task)
 def plan_task(data: schemas.PlanTaskCreate, db: Session = Depends(get_db)):
+    if data.category_id is not None:
+        cat = (
+            db.query(models.Category)
+            .filter(models.Category.id == data.category_id)
+            .first()
+        )
+        if cat is None:
+            raise HTTPException(status_code=404, detail="Category not found")
     planner = TaskPlanner(db)
     return planner.plan(data)
 
@@ -906,6 +1023,14 @@ def update_task(task_id: int, task: schemas.TaskUpdate, db: Session = Depends(ge
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
         raise HTTPException(status_code=404, detail='Task not found')
+    if task.category_id is not None:
+        cat = (
+            db.query(models.Category)
+            .filter(models.Category.id == task.category_id)
+            .first()
+        )
+        if cat is None:
+            raise HTTPException(status_code=404, detail="Category not found")
     for field, value in task.dict().items():
         setattr(db_task, field, value)
     db.commit()

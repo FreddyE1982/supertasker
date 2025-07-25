@@ -999,3 +999,42 @@ def test_intelligent_buffer(monkeypatch):
     expected = datetime.combine(TOMORROW, dtime(10, 0)) + timedelta(minutes=20)
     assert start >= expected
 
+
+def test_category_context_grouping(monkeypatch):
+    cat = {"name": "Code", "color": "#0000ff"}
+    r = requests.post(f"{API_URL}/categories", json=cat)
+    assert r.status_code == 200
+    category = r.json()
+
+    first = {
+        "title": "First", 
+        "description": "", 
+        "estimated_difficulty": 3, 
+        "estimated_duration_minutes": 25, 
+        "due_date": TOMORROW.isoformat(), 
+        "priority": 3, 
+        "category_id": category["id"],
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=first)
+    assert r.status_code == 200
+    t1 = r.json()
+    fs1 = requests.get(f"{API_URL}/tasks/{t1['id']}/focus_sessions").json()[0]
+    end1 = datetime.fromisoformat(fs1["end_time"])
+
+    second = {
+        "title": "Second", 
+        "description": "", 
+        "estimated_difficulty": 2, 
+        "estimated_duration_minutes": 25, 
+        "due_date": TOMORROW.isoformat(), 
+        "priority": 2, 
+        "category_id": category["id"],
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=second)
+    assert r.status_code == 200
+    t2 = r.json()
+    fs2 = requests.get(f"{API_URL}/tasks/{t2['id']}/focus_sessions").json()[0]
+    start2 = datetime.fromisoformat(fs2["start_time"])
+    assert start2 >= end1
+    assert start2 - end1 <= timedelta(minutes=60)
+
