@@ -239,6 +239,27 @@ with tabs[1]:
             step=0.1,
             key="plan-cat-prod",
         )
+        p_sess_weight = st.number_input(
+            "Session Count Weight",
+            min_value=0.0,
+            value=float(os.getenv("SESSION_COUNT_WEIGHT", "0")),
+            step=0.1,
+            key="plan-sess-weight",
+        )
+        p_diff_load_weight = st.number_input(
+            "Difficulty Load Weight",
+            min_value=0.0,
+            value=float(os.getenv("DIFFICULTY_LOAD_WEIGHT", "0")),
+            step=0.1,
+            key="plan-diff-load-weight",
+        )
+        p_energy_load_weight = st.number_input(
+            "Energy Load Weight",
+            min_value=0.0,
+            value=float(os.getenv("ENERGY_LOAD_WEIGHT", "0")),
+            step=0.1,
+            key="plan-energy-load-weight",
+        )
         p_buffer = st.number_input(
             "Transition Buffer Minutes",
             min_value=0,
@@ -273,11 +294,14 @@ with tabs[1]:
                 "energy_curve": [int(x) for x in p_curve.split(",") if x.strip()],
                 "energy_day_order_weight": float(p_day_weight),
                 "transition_buffer_minutes": int(p_buffer),
-                "intelligent_transition_buffer": bool(p_int_buffer),
-                "category_productivity_weight": float(p_cat_prod),
-                "spaced_repetition_factor": float(p_spaced),
-                "category_id": p_category_id,
-            }
+            "intelligent_transition_buffer": bool(p_int_buffer),
+            "category_productivity_weight": float(p_cat_prod),
+            "spaced_repetition_factor": float(p_spaced),
+            "session_count_weight": float(p_sess_weight),
+            "difficulty_load_weight": float(p_diff_load_weight),
+            "energy_load_weight": float(p_energy_load_weight),
+            "category_id": p_category_id,
+        }
             r = requests.post(f"{API_URL}/tasks/plan", json=data)
             if r.status_code == 200:
                 st.success("Planned")

@@ -84,6 +84,9 @@ class PlanTaskCreate(BaseModel):
     productivity_half_life_days: int | None = None
     category_productivity_weight: float | None = None
     spaced_repetition_factor: float | None = None
+    session_count_weight: float | None = None
+    difficulty_load_weight: float | None = None
+    energy_load_weight: float | None = None
 
 
 class TaskUpdate(TaskBase):
