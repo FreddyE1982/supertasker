@@ -26,11 +26,13 @@ class FocusSessionService:
     def __init__(self, db: Session):
         self.db = db
 
-    def create(self, task_id: int, duration_minutes: int) -> models.FocusSession:
+    def create(
+        self, task_id: int, duration_minutes: int, start_time: datetime | None = None
+    ) -> models.FocusSession:
         task = self.db.query(models.Task).filter(models.Task.id == task_id).first()
         if not task:
             raise HTTPException(status_code=404, detail="Task not found")
-        start = datetime.utcnow()
+        start = start_time or datetime.utcnow()
         end = start + timedelta(minutes=duration_minutes)
         session = models.FocusSession(
             task_id=task_id, start_time=start, end_time=end, completed=False
@@ -138,7 +140,9 @@ class TaskPlanner:
         """Return the accumulated difficulty score scheduled per day."""
         loads: dict[date, int] = {}
         query = (
-            self.db.query(models.FocusSession.start_time, models.Task.estimated_difficulty)
+            self.db.query(
+                models.FocusSession.start_time, models.Task.estimated_difficulty
+            )
             .join(models.Task, models.Task.id == models.FocusSession.task_id)
             .all()
         )
@@ -167,6 +171,23 @@ class TaskPlanner:
             loads[d] = loads.get(d, 0) + diff_val * length
         return loads
 
+    def _historical_productivity(self, half_life: int) -> list[float]:
+        """Return hourly completion rates weighted by recency."""
+        success = [0.0] * 24
+        total = [0.0] * 24
+        now = datetime.utcnow()
+        for fs in self.db.query(models.FocusSession).all():
+            hour = fs.start_time.hour
+            days = max(0, (now - fs.start_time).days)
+            weight = 0.5 ** (days / half_life) if half_life > 0 else 1.0
+            total[hour] += weight
+            if fs.completed:
+                success[hour] += weight
+        rates: list[float] = []
+        for s, t in zip(success, total):
+            rates.append(s / t if t else 0.5)
+        return rates
+
     def _next_work_time(
         self,
         dt: datetime,
@@ -174,14 +195,10 @@ class TaskPlanner:
         end_hour: int | None = None,
     ) -> datetime:
         start_hour = (
-            int(os.getenv("WORK_START_HOUR", "9"))
-            if start_hour is None
-            else start_hour
+            int(os.getenv("WORK_START_HOUR", "9")) if start_hour is None else start_hour
         )
         end_hour = (
-            int(os.getenv("WORK_END_HOUR", "17"))
-            if end_hour is None
-            else end_hour
+            int(os.getenv("WORK_END_HOUR", "17")) if end_hour is None else end_hour
         )
         work_days_env = os.getenv("WORK_DAYS")
         if work_days_env:
@@ -269,9 +286,7 @@ class TaskPlanner:
         urg_w = float(os.getenv("URGENCY_WEIGHT", "1"))
         total_w = diff_w + prio_w + urg_w
 
-        weight = (
-            difficulty * diff_w + priority * prio_w + urgency * urg_w
-        ) / total_w
+        weight = (difficulty * diff_w + priority * prio_w + urgency * urg_w) / total_w
 
         if energy_curve and len(energy_curve) == 24:
             hours = range(start_hour, end_hour)
@@ -282,6 +297,7 @@ class TaskPlanner:
 
         offset = max(0, round(5 - weight))
         return min(end_hour - 1, start_hour + offset)
+
     def _avoid_low_energy(self, dt: datetime, difficulty: int) -> datetime:
         """Shift start time out of the low energy window for hard tasks."""
         if difficulty < 4:
@@ -309,7 +325,9 @@ class TaskPlanner:
         if dt.hour < start_hour:
             dt = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0)
         elif dt.hour + math.ceil(session_len / 60) > end_hour:
-            dt = dt.replace(hour=start_hour, minute=0, second=0, microsecond=0) + timedelta(days=1)
+            dt = dt.replace(
+                hour=start_hour, minute=0, second=0, microsecond=0
+            ) + timedelta(days=1)
         return dt
 
     def _best_energy_slot(
@@ -321,6 +339,8 @@ class TaskPlanner:
         buffer_minutes: int = 0,
         start_hour: int | None = None,
         end_hour: int | None = None,
+        productivity_weight: float | None = None,
+        half_life: int | None = None,
     ) -> datetime:
         """Return the best available start time on ``start``'s day based on the
         highest energy level within working hours."""
@@ -342,6 +362,11 @@ class TaskPlanner:
             start_hour = int(os.getenv("WORK_START_HOUR", "9"))
         if end_hour is None:
             end_hour = int(os.getenv("WORK_END_HOUR", "17"))
+        if productivity_weight is None:
+            productivity_weight = float(os.getenv("PRODUCTIVITY_HISTORY_WEIGHT", "0"))
+        if half_life is None:
+            half_life = int(os.getenv("PRODUCTIVITY_HALF_LIFE_DAYS", "30"))
+        hist = self._historical_productivity(half_life) if productivity_weight else None
 
         aligned = start.replace(second=0, microsecond=0)
         day_start = aligned.replace(hour=start_hour, minute=0)
@@ -352,12 +377,16 @@ class TaskPlanner:
         candidate = day_start
         duration = timedelta(minutes=session_len)
         while candidate + duration <= day_end:
-            if not self._conflicts(candidate, candidate + duration, events, buffer_minutes):
+            if not self._conflicts(
+                candidate, candidate + duration, events, buffer_minutes
+            ):
                 energy = (
                     energy_curve[candidate.hour]
                     if energy_curve and len(energy_curve) == 24
                     else 1
                 )
+                if hist:
+                    energy *= 1 + productivity_weight * (hist[candidate.hour] - 0.5) * 2
                 if energy > best_energy:
                     best_energy = energy
                     best = candidate
@@ -439,17 +468,21 @@ class TaskPlanner:
         latest_end = max(e for _, e in same_cat)
         candidate = latest_end
         candidate_end = candidate + timedelta(minutes=session_len)
-        if (
-            candidate_end - latest_end <= timedelta(minutes=window)
-            and not self._conflicts(candidate, candidate_end, events, buffer_minutes)
-        ):
+        if candidate_end - latest_end <= timedelta(
+            minutes=window
+        ) and not self._conflicts(candidate, candidate_end, events, buffer_minutes):
             return candidate
 
         earliest_start = min(s for s, _ in same_cat)
         candidate = earliest_start - timedelta(minutes=session_len)
         if (
             earliest_start - candidate <= timedelta(minutes=window)
-            and not self._conflicts(candidate, candidate + timedelta(minutes=session_len), events, buffer_minutes)
+            and not self._conflicts(
+                candidate,
+                candidate + timedelta(minutes=session_len),
+                events,
+                buffer_minutes,
+            )
             and candidate.date() == start.date()
         ):
             return candidate
@@ -467,7 +500,11 @@ class TaskPlanner:
             start = start.replace(hour=cat_start, minute=0, second=0, microsecond=0)
         if cat_end is not None and start.hour + math.ceil(session_len / 60) > cat_end:
             next_day = start.date() + timedelta(days=1)
-            hour = cat_start if cat_start is not None else int(os.getenv("WORK_START_HOUR", "9"))
+            hour = (
+                cat_start
+                if cat_start is not None
+                else int(os.getenv("WORK_START_HOUR", "9"))
+            )
             start = datetime.combine(next_day, time(hour=hour))
         return start
 
@@ -485,9 +522,7 @@ class TaskPlanner:
         prio_w = float(os.getenv("PRIORITY_WEIGHT", "1"))
         urg_w = float(os.getenv("URGENCY_WEIGHT", "1"))
         total_w = diff_w + prio_w + urg_w
-        weight = (
-            difficulty * diff_w + priority * prio_w + urgency * urg_w
-        ) / total_w
+        weight = (difficulty * diff_w + priority * prio_w + urgency * urg_w) / total_w
         scale = 1 + (weight - 3) / 4
         length = round(base_len * scale)
         return max(min_len, min(max_len, length))
@@ -520,7 +555,10 @@ class TaskPlanner:
         return base
 
     def _free_minutes(
-        self, day: date, events: list[tuple[datetime, datetime]], buffer_minutes: int = 0
+        self,
+        day: date,
+        events: list[tuple[datetime, datetime]],
+        buffer_minutes: int = 0,
     ) -> int:
         """Return available working minutes on ``day`` excluding existing events."""
         start_hour = int(os.getenv("WORK_START_HOUR", "9"))
@@ -659,7 +697,10 @@ class TaskPlanner:
         return blocks
 
     def _largest_free_block(
-        self, day: date, events: list[tuple[datetime, datetime]], buffer_minutes: int = 0
+        self,
+        day: date,
+        events: list[tuple[datetime, datetime]],
+        buffer_minutes: int = 0,
     ) -> tuple[datetime, datetime] | None:
         """Return the largest free interval on ``day`` if available."""
         blocks = self._day_free_blocks(day, events, buffer_minutes)
@@ -685,7 +726,9 @@ class TaskPlanner:
                 days.append(d)
             d += timedelta(days=1)
         if not days:
-            raise HTTPException(status_code=400, detail="Cannot schedule before due date")
+            raise HTTPException(
+                status_code=400, detail="Cannot schedule before due date"
+            )
         if os.getenv("INTELLIGENT_DAY_ORDER", "0") in {"1", "true", "True"}:
             if energy_weight is None:
                 energy_weight = float(os.getenv("ENERGY_DAY_ORDER_WEIGHT", "0"))
@@ -698,7 +741,6 @@ class TaskPlanner:
                 reverse=True,
             )
         return days[0]
-
 
     def _schedule_sessions(
         self,
@@ -715,6 +757,8 @@ class TaskPlanner:
         energy_day_order_weight: float | None = None,
         transition_buffer: int | None = None,
         intelligent_buffer: bool | None = None,
+        productivity_weight: float | None = None,
+        productivity_half_life: int | None = None,
     ) -> list[tuple[datetime, datetime]]:
         urgency = self._urgency(due)
         session_len = self._session_length(difficulty, priority, urgency)
@@ -749,9 +793,12 @@ class TaskPlanner:
         intelligent_flag = (
             intelligent_buffer
             if intelligent_buffer is not None
-            else os.getenv("INTELLIGENT_TRANSITION_BUFFER", "0") in {"1", "true", "True"}
+            else os.getenv("INTELLIGENT_TRANSITION_BUFFER", "0")
+            in {"1", "true", "True"}
         )
-        buffer_minutes = self._transition_buffer_value(difficulty, base_buffer, intelligent_flag)
+        buffer_minutes = self._transition_buffer_value(
+            difficulty, base_buffer, intelligent_flag
+        )
 
         daily_limit = int(os.getenv("DAILY_SESSION_LIMIT", "0"))
         daily_counts = self._session_counts()
@@ -809,9 +856,14 @@ class TaskPlanner:
                     day += timedelta(days=1)
                     continue
                 block = self._largest_free_block(day, events, buffer_minutes)
-                if block and (block[1] - block[0]).total_seconds() // 60 >= total_needed:
+                if (
+                    block
+                    and (block[1] - block[0]).total_seconds() // 60 >= total_needed
+                ):
                     now = max(block[0], datetime.combine(day, time(hour=preferred)))
-                    now = self._align_category_window(now, session_len, cat_start, cat_end)
+                    now = self._align_category_window(
+                        now, session_len, cat_start, cat_end
+                    )
                     sessions: list[tuple[datetime, datetime]] = []
                     since_break = 0
                     for _ in range(needed):
@@ -822,7 +874,11 @@ class TaskPlanner:
                         now = end
                         if len(sessions) == needed:
                             break
-                        break_len = long_break if since_break == long_interval - 1 else short_break
+                        break_len = (
+                            long_break
+                            if since_break == long_interval - 1
+                            else short_break
+                        )
                         break_end = now + timedelta(minutes=break_len)
                         events.append((now, break_end))
                         events.append(
@@ -868,7 +924,10 @@ class TaskPlanner:
                 if sessions and now.date() != sessions[-1][0].date():
                     per_day = 0
                 continue
-            if difficulty_limit and difficulty_loads.get(now.date(), 0) + difficulty > difficulty_limit:
+            if (
+                difficulty_limit
+                and difficulty_loads.get(now.date(), 0) + difficulty > difficulty_limit
+            ):
                 start_hour = int(os.getenv("WORK_START_HOUR", "9"))
                 next_day = self._next_day_by_free_time(
                     now.date() + timedelta(days=1),
@@ -889,7 +948,11 @@ class TaskPlanner:
                 if sessions and now.date() != sessions[-1][0].date():
                     per_day = 0
                 continue
-            if energy_limit and energy_loads.get(now.date(), 0) + difficulty * session_len > energy_limit:
+            if (
+                energy_limit
+                and energy_loads.get(now.date(), 0) + difficulty * session_len
+                > energy_limit
+            ):
                 start_hour = int(os.getenv("WORK_START_HOUR", "9"))
                 next_day = self._next_day_by_free_time(
                     now.date() + timedelta(days=1),
@@ -929,6 +992,8 @@ class TaskPlanner:
                 buffer_minutes,
                 cat_start,
                 cat_end,
+                productivity_weight,
+                productivity_half_life,
             )
             start = self._align_category_window(start, session_len, cat_start, cat_end)
             if start != now:
@@ -947,7 +1012,9 @@ class TaskPlanner:
                     per_day = 0
                 continue
             if end.date() > due:
-                raise HTTPException(status_code=400, detail="Cannot schedule before due date")
+                raise HTTPException(
+                    status_code=400, detail="Cannot schedule before due date"
+                )
             end_hour = int(os.getenv("WORK_END_HOUR", "17"))
             if end.hour > end_hour or (end.hour == end_hour and end.minute > 0):
                 now = self._next_work_time(
@@ -961,7 +1028,10 @@ class TaskPlanner:
                 continue
             if self._conflicts(start, end, events, buffer_minutes):
                 overlap_end = max(
-                    e for s, e in events if start < e + timedelta(minutes=buffer_minutes) and end > s - timedelta(minutes=buffer_minutes)
+                    e
+                    for s, e in events
+                    if start < e + timedelta(minutes=buffer_minutes)
+                    and end > s - timedelta(minutes=buffer_minutes)
                 )
                 now = self._next_work_time(
                     overlap_end + timedelta(minutes=buffer_minutes),
@@ -994,7 +1064,9 @@ class TaskPlanner:
                         cat_end,
                     )
                     if now.hour < preferred:
-                        now = now.replace(hour=preferred, minute=0, second=0, microsecond=0)
+                        now = now.replace(
+                            hour=preferred, minute=0, second=0, microsecond=0
+                        )
                     per_day = 0
                     remaining_days = max(1, (last_work_day - now.date()).days + 1)
                     target_per_day = min(
@@ -1022,8 +1094,12 @@ class TaskPlanner:
             since_break = (since_break + 1) % long_interval
             per_day += 1
             daily_counts[start.date()] = daily_counts.get(start.date(), 0) + 1
-            difficulty_loads[start.date()] = difficulty_loads.get(start.date(), 0) + difficulty
-            energy_loads[start.date()] = energy_loads.get(start.date(), 0) + difficulty * session_len
+            difficulty_loads[start.date()] = (
+                difficulty_loads.get(start.date(), 0) + difficulty
+            )
+            energy_loads[start.date()] = (
+                energy_loads.get(start.date(), 0) + difficulty * session_len
+            )
         return sessions
 
     def plan(self, data: schemas.PlanTaskCreate) -> models.Task:
@@ -1055,6 +1131,8 @@ class TaskPlanner:
             data.energy_day_order_weight,
             data.transition_buffer_minutes,
             data.intelligent_transition_buffer,
+            data.productivity_history_weight,
+            data.productivity_half_life_days,
         )
 
         for idx, (s, e) in enumerate(sessions, start=1):
@@ -1079,7 +1157,7 @@ class TaskPlanner:
         self.db.commit()
         self.db.refresh(task)
         return task
-        
+
 
 @app.post("/categories", response_model=schemas.Category)
 def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
@@ -1094,10 +1172,17 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
 def list_categories(db: Session = Depends(get_db)):
     return db.query(models.Category).all()
 
-@app.post('/appointments', response_model=schemas.Appointment)
-def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)):
+
+@app.post("/appointments", response_model=schemas.Appointment)
+def create_appointment(
+    appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)
+):
     if appointment.category_id is not None:
-        cat = db.query(models.Category).filter(models.Category.id == appointment.category_id).first()
+        cat = (
+            db.query(models.Category)
+            .filter(models.Category.id == appointment.category_id)
+            .first()
+        )
         if cat is None:
             raise HTTPException(status_code=404, detail="Category not found")
     db_app = models.Appointment(**appointment.dict())
@@ -1106,17 +1191,31 @@ def create_appointment(appointment: schemas.AppointmentCreate, db: Session = Dep
     db.refresh(db_app)
     return db_app
 
-@app.get('/appointments', response_model=list[schemas.Appointment])
+
+@app.get("/appointments", response_model=list[schemas.Appointment])
 def list_appointments(db: Session = Depends(get_db)):
     return db.query(models.Appointment).all()
 
-@app.put('/appointments/{appointment_id}', response_model=schemas.Appointment)
-def update_appointment(appointment_id: int, appointment: schemas.AppointmentUpdate, db: Session = Depends(get_db)):
-    db_app = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+
+@app.put("/appointments/{appointment_id}", response_model=schemas.Appointment)
+def update_appointment(
+    appointment_id: int,
+    appointment: schemas.AppointmentUpdate,
+    db: Session = Depends(get_db),
+):
+    db_app = (
+        db.query(models.Appointment)
+        .filter(models.Appointment.id == appointment_id)
+        .first()
+    )
     if not db_app:
-        raise HTTPException(status_code=404, detail='Appointment not found')
+        raise HTTPException(status_code=404, detail="Appointment not found")
     if appointment.category_id is not None:
-        cat = db.query(models.Category).filter(models.Category.id == appointment.category_id).first()
+        cat = (
+            db.query(models.Category)
+            .filter(models.Category.id == appointment.category_id)
+            .first()
+        )
         if cat is None:
             raise HTTPException(status_code=404, detail="Category not found")
     for field, value in appointment.dict().items():
@@ -1125,17 +1224,22 @@ def update_appointment(appointment_id: int, appointment: schemas.AppointmentUpda
     db.refresh(db_app)
     return db_app
 
-@app.delete('/appointments/{appointment_id}')
+
+@app.delete("/appointments/{appointment_id}")
 def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
-    db_app = db.query(models.Appointment).filter(models.Appointment.id == appointment_id).first()
+    db_app = (
+        db.query(models.Appointment)
+        .filter(models.Appointment.id == appointment_id)
+        .first()
+    )
     if not db_app:
-        raise HTTPException(status_code=404, detail='Appointment not found')
+        raise HTTPException(status_code=404, detail="Appointment not found")
     db.delete(db_app)
     db.commit()
-    return {'detail': 'Deleted'}
+    return {"detail": "Deleted"}
 
 
-@app.post('/tasks', response_model=schemas.Task)
+@app.post("/tasks", response_model=schemas.Task)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
     if task.category_id is not None:
         cat = (
@@ -1152,7 +1256,7 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
     return db_task
 
 
-@app.post('/tasks/plan', response_model=schemas.Task)
+@app.post("/tasks/plan", response_model=schemas.Task)
 def plan_task(data: schemas.PlanTaskCreate, db: Session = Depends(get_db)):
     if data.category_id is not None:
         cat = (
@@ -1166,16 +1270,16 @@ def plan_task(data: schemas.PlanTaskCreate, db: Session = Depends(get_db)):
     return planner.plan(data)
 
 
-@app.get('/tasks', response_model=list[schemas.Task])
+@app.get("/tasks", response_model=list[schemas.Task])
 def list_tasks(db: Session = Depends(get_db)):
     return db.query(models.Task).all()
 
 
-@app.put('/tasks/{task_id}', response_model=schemas.Task)
+@app.put("/tasks/{task_id}", response_model=schemas.Task)
 def update_task(task_id: int, task: schemas.TaskUpdate, db: Session = Depends(get_db)):
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
-        raise HTTPException(status_code=404, detail='Task not found')
+        raise HTTPException(status_code=404, detail="Task not found")
     if task.category_id is not None:
         cat = (
             db.query(models.Category)
@@ -1191,21 +1295,23 @@ def update_task(task_id: int, task: schemas.TaskUpdate, db: Session = Depends(ge
     return db_task
 
 
-@app.delete('/tasks/{task_id}')
+@app.delete("/tasks/{task_id}")
 def delete_task(task_id: int, db: Session = Depends(get_db)):
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
-        raise HTTPException(status_code=404, detail='Task not found')
+        raise HTTPException(status_code=404, detail="Task not found")
     db.delete(db_task)
     db.commit()
-    return {'detail': 'Deleted'}
+    return {"detail": "Deleted"}
 
 
-@app.post('/tasks/{task_id}/subtasks', response_model=schemas.Subtask)
-def create_subtask(task_id: int, subtask: schemas.SubtaskCreate, db: Session = Depends(get_db)):
+@app.post("/tasks/{task_id}/subtasks", response_model=schemas.Subtask)
+def create_subtask(
+    task_id: int, subtask: schemas.SubtaskCreate, db: Session = Depends(get_db)
+):
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not task:
-        raise HTTPException(status_code=404, detail='Task not found')
+        raise HTTPException(status_code=404, detail="Task not found")
     db_sub = models.Subtask(task_id=task_id, **subtask.dict())
     db.add(db_sub)
     db.commit()
@@ -1213,16 +1319,25 @@ def create_subtask(task_id: int, subtask: schemas.SubtaskCreate, db: Session = D
     return db_sub
 
 
-@app.get('/tasks/{task_id}/subtasks', response_model=list[schemas.Subtask])
+@app.get("/tasks/{task_id}/subtasks", response_model=list[schemas.Subtask])
 def list_subtasks(task_id: int, db: Session = Depends(get_db)):
     return db.query(models.Subtask).filter(models.Subtask.task_id == task_id).all()
 
 
-@app.put('/tasks/{task_id}/subtasks/{subtask_id}', response_model=schemas.Subtask)
-def update_subtask(task_id: int, subtask_id: int, subtask: schemas.SubtaskUpdate, db: Session = Depends(get_db)):
-    db_sub = db.query(models.Subtask).filter(models.Subtask.id == subtask_id, models.Subtask.task_id == task_id).first()
+@app.put("/tasks/{task_id}/subtasks/{subtask_id}", response_model=schemas.Subtask)
+def update_subtask(
+    task_id: int,
+    subtask_id: int,
+    subtask: schemas.SubtaskUpdate,
+    db: Session = Depends(get_db),
+):
+    db_sub = (
+        db.query(models.Subtask)
+        .filter(models.Subtask.id == subtask_id, models.Subtask.task_id == task_id)
+        .first()
+    )
     if not db_sub:
-        raise HTTPException(status_code=404, detail='Subtask not found')
+        raise HTTPException(status_code=404, detail="Subtask not found")
     for field, value in subtask.dict().items():
         setattr(db_sub, field, value)
     db.commit()
@@ -1230,36 +1345,49 @@ def update_subtask(task_id: int, subtask_id: int, subtask: schemas.SubtaskUpdate
     return db_sub
 
 
-@app.delete('/tasks/{task_id}/subtasks/{subtask_id}')
+@app.delete("/tasks/{task_id}/subtasks/{subtask_id}")
 def delete_subtask(task_id: int, subtask_id: int, db: Session = Depends(get_db)):
-    db_sub = db.query(models.Subtask).filter(models.Subtask.id == subtask_id, models.Subtask.task_id == task_id).first()
+    db_sub = (
+        db.query(models.Subtask)
+        .filter(models.Subtask.id == subtask_id, models.Subtask.task_id == task_id)
+        .first()
+    )
     if not db_sub:
-        raise HTTPException(status_code=404, detail='Subtask not found')
+        raise HTTPException(status_code=404, detail="Subtask not found")
     db.delete(db_sub)
     db.commit()
-    return {'detail': 'Deleted'}
+    return {"detail": "Deleted"}
 
 
-@app.post('/tasks/{task_id}/focus_sessions', response_model=schemas.FocusSession)
-def create_focus_session(task_id: int, fs: schemas.FocusSessionCreate, db: Session = Depends(get_db)):
+@app.post("/tasks/{task_id}/focus_sessions", response_model=schemas.FocusSession)
+def create_focus_session(
+    task_id: int, fs: schemas.FocusSessionCreate, db: Session = Depends(get_db)
+):
     service = FocusSessionService(db)
-    return service.create(task_id, fs.duration_minutes)
+    return service.create(task_id, fs.duration_minutes, fs.start_time)
 
 
-@app.get('/tasks/{task_id}/focus_sessions', response_model=list[schemas.FocusSession])
+@app.get("/tasks/{task_id}/focus_sessions", response_model=list[schemas.FocusSession])
 def list_focus_sessions(task_id: int, db: Session = Depends(get_db)):
     service = FocusSessionService(db)
     return service.list(task_id)
 
 
-@app.put('/tasks/{task_id}/focus_sessions/{session_id}', response_model=schemas.FocusSession)
-def update_focus_session(task_id: int, session_id: int, fs: schemas.FocusSessionUpdate, db: Session = Depends(get_db)):
+@app.put(
+    "/tasks/{task_id}/focus_sessions/{session_id}", response_model=schemas.FocusSession
+)
+def update_focus_session(
+    task_id: int,
+    session_id: int,
+    fs: schemas.FocusSessionUpdate,
+    db: Session = Depends(get_db),
+):
     service = FocusSessionService(db)
     return service.update(task_id, session_id, fs)
 
 
-@app.delete('/tasks/{task_id}/focus_sessions/{session_id}')
+@app.delete("/tasks/{task_id}/focus_sessions/{session_id}")
 def delete_focus_session(task_id: int, session_id: int, db: Session = Depends(get_db)):
     service = FocusSessionService(db)
     service.delete(task_id, session_id)
-    return {'detail': 'Deleted'}
+    return {"detail": "Deleted"}

@@ -152,6 +152,8 @@ settings allow advanced tuning:
 - ``TRANSITION_BUFFER_MINUTES`` – minutes of preparation and wrap-up time before and after every focus session (default 0)
 - ``INTELLIGENT_TRANSITION_BUFFER`` – scale buffer minutes with task difficulty when set to ``1`` or ``true`` (default disabled)
 - ``CATEGORY_CONTEXT_WINDOW`` – minutes around existing same-category tasks to prefer when scheduling (default 60)
+- ``PRODUCTIVITY_HISTORY_WEIGHT`` – weight of past session completion rates per hour when choosing slots (default 0)
+- ``PRODUCTIVITY_HALF_LIFE_DAYS`` – days until historical weights halve when calculating productivity (default 30)
 - ``preferred_start_hour`` and ``preferred_end_hour`` – optional fields on categories restricting scheduling to this window
 
 More difficult or high priority tasks are placed earlier in the day while

@@ -18,6 +18,7 @@ class Category(CategoryBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+
 class AppointmentBase(BaseModel):
     title: str
     description: str | None = None
@@ -25,11 +26,14 @@ class AppointmentBase(BaseModel):
     end_time: datetime
     category_id: int | None = None
 
+
 class AppointmentCreate(AppointmentBase):
     pass
 
+
 class AppointmentUpdate(AppointmentBase):
     pass
+
 
 class Appointment(AppointmentBase):
     id: int
@@ -73,6 +77,8 @@ class PlanTaskCreate(BaseModel):
     energy_day_order_weight: float | None = None
     transition_buffer_minutes: int | None = None
     intelligent_transition_buffer: bool | None = None
+    productivity_history_weight: float | None = None
+    productivity_half_life_days: int | None = None
 
 
 class TaskUpdate(TaskBase):
@@ -113,6 +119,7 @@ class FocusSessionBase(BaseModel):
 
 class FocusSessionCreate(BaseModel):
     duration_minutes: int
+    start_time: datetime | None = None
 
 
 class FocusSessionUpdate(BaseModel):
