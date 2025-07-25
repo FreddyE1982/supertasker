@@ -1202,6 +1202,72 @@ def test_productivity_history(monkeypatch):
     assert hour == 8
 
 
+@pytest.mark.env(
+    INTELLIGENT_SLOT_SELECTION="1",
+    CATEGORY_PRODUCTIVITY_WEIGHT="1",
+    WORK_START_HOUR="8",
+    WORK_END_HOUR="18",
+)
+def test_category_productivity_history(monkeypatch):
+    cat = {"name": "ProdCat", "color": "#abcdef"}
+    cat_id = requests.post(f"{API_URL}/categories", json=cat).json()["id"]
+
+    hist_task = {
+        "title": "HistoryCat",
+        "description": "",
+        "due_date": TODAY.isoformat(),
+        "start_date": None,
+        "end_date": None,
+        "start_time": None,
+        "end_time": None,
+        "perceived_difficulty": 1,
+        "estimated_difficulty": 1,
+        "priority": 1,
+        "worked_on": False,
+        "paused": False,
+        "category_id": cat_id,
+    }
+    r = requests.post(f"{API_URL}/tasks", json=hist_task)
+    assert r.status_code == 200
+    task = r.json()
+
+    start1 = datetime.combine(TODAY - timedelta(days=1), dtime(9, 0))
+    fs1 = {"duration_minutes": 25, "start_time": start1.isoformat()}
+    r = requests.post(f"{API_URL}/tasks/{task['id']}/focus_sessions", json=fs1)
+    assert r.status_code == 200
+    s1 = r.json()
+    end1 = start1 + timedelta(minutes=25)
+    r = requests.put(
+        f"{API_URL}/tasks/{task['id']}/focus_sessions/{s1['id']}",
+        json={"completed": True, "end_time": end1.isoformat()},
+    )
+    assert r.status_code == 200
+
+    start2 = datetime.combine(TODAY - timedelta(days=1), dtime(15, 0))
+    fs2 = {"duration_minutes": 25, "start_time": start2.isoformat()}
+    r = requests.post(f"{API_URL}/tasks/{task['id']}/focus_sessions", json=fs2)
+    assert r.status_code == 200
+
+    plan = {
+        "title": "FutureCat",
+        "description": "",
+        "estimated_difficulty": 5,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 5,
+        "category_id": cat_id,
+        "category_productivity_weight": 1,
+        "productivity_history_weight": 0,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=plan)
+    assert r.status_code == 200
+    new_task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{new_task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    hour = datetime.fromisoformat(fs[0]["start_time"]).hour
+    assert hour == 9
+
+
 @pytest.mark.env(INTELLIGENT_DAY_ORDER="1")
 def test_category_day_weight(monkeypatch):
     cat = {"name": "Group", "color": "#123456"}
