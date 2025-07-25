@@ -1000,6 +1000,32 @@ def test_intelligent_buffer(monkeypatch):
     assert start >= expected
 
 
+@pytest.mark.env(
+    INTELLIGENT_DAY_ORDER="1",
+    ENERGY_DAY_ORDER_WEIGHT="2",
+    WEEKDAY_ENERGY="1,1,1,1,1,10,1",
+)
+def test_weekday_energy_preference(monkeypatch):
+    curve = ",".join("1" for _ in range(24))
+    monkeypatch.setenv("ENERGY_CURVE", curve)
+    saturday = TODAY + timedelta((5 - TODAY.weekday()) % 7)
+    data = {
+        "title": "WeekendEnergy",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": saturday.isoformat(),
+        "priority": 3,
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    start_day = datetime.fromisoformat(fs[0]["start_time"]).date()
+    assert start_day == saturday
+
+
 def test_category_context_grouping(monkeypatch):
     cat = {"name": "Code", "color": "#0000ff"}
     r = requests.post(f"{API_URL}/categories", json=cat)
