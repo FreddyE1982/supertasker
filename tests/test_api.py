@@ -1200,3 +1200,59 @@ def test_productivity_history(monkeypatch):
     assert len(fs) == 1
     hour = datetime.fromisoformat(fs[0]["start_time"]).hour
     assert hour == 8
+
+
+@pytest.mark.env(INTELLIGENT_DAY_ORDER="1")
+def test_category_day_weight(monkeypatch):
+    cat = {"name": "Group", "color": "#123456"}
+    cat_id = requests.post(f"{API_URL}/categories", json=cat).json()["id"]
+
+    busy = {
+        "title": "Busy",
+        "description": "",
+        "start_time": datetime.combine(TOMORROW, dtime(12, 0)).isoformat(),
+        "end_time": datetime.combine(TOMORROW, dtime(17, 0)).isoformat(),
+        "category_id": cat_id,
+    }
+    assert requests.post(f"{API_URL}/appointments", json=busy).status_code == 200
+
+    exist = {
+        "title": "Exist",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+        "category_id": cat_id,
+    }
+    assert requests.post(f"{API_URL}/tasks/plan", json=exist).status_code == 200
+
+    base = {
+        "title": "Base",
+        "description": "",
+        "estimated_difficulty": 2,
+        "estimated_duration_minutes": 25,
+        "due_date": (TOMORROW + timedelta(days=5)).isoformat(),
+        "priority": 3,
+        "category_id": cat_id,
+    }
+    resp = requests.post(f"{API_URL}/tasks/plan", json=base)
+    assert resp.status_code == 200
+    base_task = resp.json()
+    base_day = datetime.fromisoformat(
+        requests.get(f"{API_URL}/tasks/{base_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
+    ).date()
+
+    weighted = base | {"category_day_weight": 20, "title": "Weighted"}
+    resp = requests.post(f"{API_URL}/tasks/plan", json=weighted)
+    assert resp.status_code == 200
+    w_task = resp.json()
+    weight_day = datetime.fromisoformat(
+        requests.get(f"{API_URL}/tasks/{w_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
+    ).date()
+
+    assert weight_day <= base_day

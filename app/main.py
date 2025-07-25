@@ -654,6 +654,108 @@ class TaskPlanner:
                 t = block_end
         return score * self._weekday_energy(day)
 
+    def _category_minutes(self, day: date, category_id: int | None) -> int:
+        """Return total minutes of events belonging to ``category_id`` on ``day``."""
+        if category_id is None:
+            return 0
+        start_day = datetime.combine(day, time.min)
+        end_day = datetime.combine(day, time.max)
+        minutes = 0
+
+        appts = (
+            self.db.query(models.Appointment)
+            .filter(models.Appointment.category_id == category_id)
+            .all()
+        )
+        for a in appts:
+            if a.start_time <= end_day and a.end_time >= start_day:
+                s = max(a.start_time, start_day)
+                e = min(a.end_time, end_day)
+                minutes += int((e - s).total_seconds() // 60)
+
+        sessions = (
+            self.db.query(models.FocusSession, models.Task.category_id)
+            .join(models.Task, models.Task.id == models.FocusSession.task_id)
+            .filter(models.Task.category_id == category_id)
+            .all()
+        )
+        for fs, _ in sessions:
+            if fs.start_time <= end_day and fs.end_time >= start_day:
+                s = max(fs.start_time, start_day)
+                e = min(fs.end_time, end_day)
+                minutes += int((e - s).total_seconds() // 60)
+
+        tasks = (
+            self.db.query(models.Task)
+            .filter(models.Task.category_id == category_id)
+            .all()
+        )
+        for t in tasks:
+            if (
+                t.start_date
+                and t.end_date
+                and t.start_time is not None
+                and t.end_time is not None
+            ):
+                sdt = datetime.combine(t.start_date, t.start_time)
+                edt = datetime.combine(t.end_date, t.end_time)
+                if sdt <= end_day and edt >= start_day:
+                    s = max(sdt, start_day)
+                    e = min(edt, end_day)
+                    minutes += int((e - s).total_seconds() // 60)
+
+        return minutes
+
+    def _earliest_category_day(self, before: date, category_id: int) -> date | None:
+        """Return the most recent day on or before ``before`` containing the category."""
+        best: date | None = None
+
+        def check_interval(start: datetime, end: datetime) -> None:
+            nonlocal best
+            day = start.date()
+            while day <= end.date() and day <= before:
+                if best is None or day > best:
+                    best = day
+                day += timedelta(days=1)
+
+        appts = (
+            self.db.query(models.Appointment)
+            .filter(models.Appointment.category_id == category_id)
+            .all()
+        )
+        for a in appts:
+            if a.end_time.date() <= before:
+                check_interval(a.start_time, a.end_time)
+
+        sessions = (
+            self.db.query(models.FocusSession, models.Task.category_id)
+            .join(models.Task, models.Task.id == models.FocusSession.task_id)
+            .filter(models.Task.category_id == category_id)
+            .all()
+        )
+        for fs, _ in sessions:
+            if fs.end_time.date() <= before:
+                check_interval(fs.start_time, fs.end_time)
+
+        tasks = (
+            self.db.query(models.Task)
+            .filter(models.Task.category_id == category_id)
+            .all()
+        )
+        for t in tasks:
+            if (
+                t.start_date
+                and t.end_date
+                and t.start_time is not None
+                and t.end_time is not None
+                and t.end_date <= before
+            ):
+                sdt = datetime.combine(t.start_date, t.start_time)
+                edt = datetime.combine(t.end_date, t.end_time)
+                check_interval(sdt, edt)
+
+        return best
+
     def _day_free_blocks(
         self,
         day: date,
@@ -716,6 +818,8 @@ class TaskPlanner:
         work_days: set[int],
         energy_curve: list[int] | None = None,
         energy_weight: float | None = None,
+        category_id: int | None = None,
+        category_weight: float | None = None,
         buffer_minutes: int = 0,
     ) -> date:
         """Return the next planning day using free time and optional energy weighting."""
@@ -729,14 +833,19 @@ class TaskPlanner:
             raise HTTPException(
                 status_code=400, detail="Cannot schedule before due date"
             )
-        if os.getenv("INTELLIGENT_DAY_ORDER", "0") in {"1", "true", "True"}:
+        energy_flag = os.getenv("INTELLIGENT_DAY_ORDER", "0") in {"1", "true", "True"}
+        if energy_flag or category_weight:
             if energy_weight is None:
                 energy_weight = float(os.getenv("ENERGY_DAY_ORDER_WEIGHT", "0"))
+            if category_weight is None:
+                category_weight = float(os.getenv("CATEGORY_DAY_WEIGHT", "0"))
             days.sort(
                 key=lambda day: (
                     self._free_minutes(day, events, buffer_minutes)
                     + energy_weight
                     * self._available_energy(day, events, energy_curve, buffer_minutes)
+                    + category_weight
+                    * self._category_minutes(day, category_id)
                 ),
                 reverse=True,
             )
@@ -755,6 +864,7 @@ class TaskPlanner:
         fatigue_break_factor: float | None = None,
         energy_curve: list[int] | None = None,
         energy_day_order_weight: float | None = None,
+        category_day_weight: float | None = None,
         transition_buffer: int | None = None,
         intelligent_buffer: bool | None = None,
         productivity_weight: float | None = None,
@@ -806,6 +916,8 @@ class TaskPlanner:
         difficulty_loads = self._difficulty_loads()
         energy_limit = int(os.getenv("DAILY_ENERGY_LIMIT", "0"))
         energy_loads = self._energy_loads()
+        if category_day_weight is None:
+            category_day_weight = float(os.getenv("CATEGORY_DAY_WEIGHT", "0"))
 
         now = self._next_work_time(datetime.utcnow(), cat_start, cat_end)
         preferred = self._preferred_start_hour(
@@ -837,6 +949,10 @@ class TaskPlanner:
 
         offset = round((importance - 1) / 4 * days_left * 0.5)
         start_candidate = last_work_day - timedelta(days=days_needed - 1 + offset)
+        if category_day_weight and category_id is not None:
+            earliest = self._earliest_category_day(start_candidate, category_id)
+            if earliest is not None:
+                start_candidate = min(start_candidate, earliest)
         start_day = max(now.date(), start_candidate)
         start_day = self._next_day_by_free_time(
             start_day,
@@ -845,6 +961,8 @@ class TaskPlanner:
             work_days,
             energy_curve,
             energy_day_order_weight,
+            category_id,
+            category_day_weight,
             buffer_minutes,
         )
         deep_threshold = int(os.getenv("DEEP_WORK_THRESHOLD", "0"))
@@ -912,6 +1030,8 @@ class TaskPlanner:
                     work_days,
                     energy_curve,
                     energy_day_order_weight,
+                    category_id,
+                    category_day_weight,
                     buffer_minutes,
                 )
                 now = self._next_work_time(
@@ -936,6 +1056,8 @@ class TaskPlanner:
                     work_days,
                     energy_curve,
                     energy_day_order_weight,
+                    category_id,
+                    category_day_weight,
                     buffer_minutes,
                 )
                 now = self._next_work_time(
@@ -961,6 +1083,8 @@ class TaskPlanner:
                     work_days,
                     energy_curve,
                     energy_day_order_weight,
+                    category_id,
+                    category_day_weight,
                     buffer_minutes,
                 )
                 now = self._next_work_time(
@@ -1056,6 +1180,8 @@ class TaskPlanner:
                         work_days,
                         energy_curve,
                         energy_day_order_weight,
+                        category_id,
+                        category_day_weight,
                         buffer_minutes,
                     )
                     now = self._next_work_time(
@@ -1129,6 +1255,7 @@ class TaskPlanner:
             data.fatigue_break_factor,
             data.energy_curve,
             data.energy_day_order_weight,
+            data.category_day_weight,
             data.transition_buffer_minutes,
             data.intelligent_transition_buffer,
             data.productivity_history_weight,

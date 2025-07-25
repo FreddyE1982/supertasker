@@ -86,8 +86,9 @@ Focus sessions help break work into manageable chunks. Endpoints:
 
 Create and schedule tasks in one step with `POST /tasks/plan`.
 Send JSON with `title`, `description`, `estimated_difficulty`,
-`estimated_duration_minutes`, `due_date` and optional `priority` or
-`category_id` to group related work.
+`estimated_duration_minutes`, `due_date` and optional `priority`,
+`category_id` or `category_day_weight` to group related work and prefer days
+that already contain tasks of the same category.
 The service splits the work into 25-minute focus sessions with
 Pomodoro-style breaks and ensures no overlap with existing calendar entries.
 Sessions are interlaced with all current appointments and tasks so that work
@@ -152,6 +153,7 @@ settings allow advanced tuning:
 - ``TRANSITION_BUFFER_MINUTES`` – minutes of preparation and wrap-up time before and after every focus session (default 0)
 - ``INTELLIGENT_TRANSITION_BUFFER`` – scale buffer minutes with task difficulty when set to ``1`` or ``true`` (default disabled)
 - ``CATEGORY_CONTEXT_WINDOW`` – minutes around existing same-category tasks to prefer when scheduling (default 60)
+- ``CATEGORY_DAY_WEIGHT`` – additional weight favouring days that already contain events of the same category (default 0)
 - ``PRODUCTIVITY_HISTORY_WEIGHT`` – weight of past session completion rates per hour when choosing slots (default 0)
 - ``PRODUCTIVITY_HALF_LIFE_DAYS`` – days until historical weights halve when calculating productivity (default 30)
 - ``preferred_start_hour`` and ``preferred_end_hour`` – optional fields on categories restricting scheduling to this window

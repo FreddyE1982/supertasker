@@ -75,6 +75,7 @@ class PlanTaskCreate(BaseModel):
     fatigue_break_factor: float | None = None
     energy_curve: list[int] | None = None
     energy_day_order_weight: float | None = None
+    category_day_weight: float | None = None
     transition_buffer_minutes: int | None = None
     intelligent_transition_buffer: bool | None = None
     productivity_history_weight: float | None = None
