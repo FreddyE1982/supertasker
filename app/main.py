@@ -472,6 +472,18 @@ class TaskPlanner:
                     busy += int((overlap_end - overlap_start).total_seconds() // 60)
         return max(0, total - busy)
 
+    def _weekday_energy(self, day: date) -> int:
+        """Return the configured energy multiplier for the weekday of ``day``."""
+        week_env = os.getenv("WEEKDAY_ENERGY")
+        if week_env:
+            try:
+                levels = [int(x) for x in week_env.split(",")]
+                if len(levels) == 7:
+                    return levels[day.weekday()]
+            except ValueError:
+                pass
+        return 1
+
     def _available_energy(
         self,
         day: date,
@@ -479,7 +491,14 @@ class TaskPlanner:
         energy_curve: list[int] | None = None,
         buffer_minutes: int = 0,
     ) -> int:
-        """Return a weighted energy score for all free minutes on ``day``."""
+        """Return a weighted energy score for all free minutes on ``day``.
+
+        The score now also multiplies the hourly energy levels with optional
+        weekday specific weights configured via the ``WEEKDAY_ENERGY``
+        environment variable (values for Monday to Sunday). This allows more
+        intelligent day selection by reflecting that some days generally offer
+        better focus than others.
+        """
         if energy_curve is None:
             curve_env = os.getenv("ENERGY_CURVE")
             if curve_env:
@@ -522,7 +541,7 @@ class TaskPlanner:
                     )
                     score += level
                 t = block_end
-        return score
+        return score * self._weekday_energy(day)
 
     def _day_free_blocks(
         self,

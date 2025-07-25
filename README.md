@@ -119,6 +119,9 @@ settings allow advanced tuning:
   focus sessions (default disabled)
 - ``ENERGY_DAY_ORDER_WEIGHT`` – additional weight for days with higher available
   energy when intelligent day order is enabled (default 0)
+- ``WEEKDAY_ENERGY`` – comma-separated list of seven numbers giving relative
+  energy for each weekday starting Monday. Used with intelligent day order to
+  prefer days that generally offer better focus (default all ``1``)
 - ``WORK_DAYS`` – comma-separated list of weekday numbers (0=Monday) that are
   considered working days. By default all days are allowed.
 - ``LUNCH_START_HOUR`` – hour when a daily lunch break begins (default 12)
