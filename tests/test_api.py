@@ -1098,3 +1098,32 @@ def test_category_context_grouping(monkeypatch):
     assert start2 >= end1
     assert start2 - end1 <= timedelta(minutes=60)
 
+
+def test_category_preferred_hours(monkeypatch):
+    cat = {
+        "name": "Morning",
+        "color": "#00ff00",
+        "preferred_start_hour": 8,
+        "preferred_end_hour": 10,
+    }
+    r = requests.post(f"{API_URL}/categories", json=cat)
+    assert r.status_code == 200
+    category = r.json()
+
+    data = {
+        "title": "Timed",
+        "description": "",
+        "estimated_difficulty": 3,
+        "estimated_duration_minutes": 25,
+        "due_date": TOMORROW.isoformat(),
+        "priority": 3,
+        "category_id": category["id"],
+    }
+    r = requests.post(f"{API_URL}/tasks/plan", json=data)
+    assert r.status_code == 200
+    task = r.json()
+    fs = requests.get(f"{API_URL}/tasks/{task['id']}/focus_sessions").json()
+    assert len(fs) == 1
+    start_hour = datetime.fromisoformat(fs[0]["start_time"]).hour
+    assert 8 <= start_hour < 10
+

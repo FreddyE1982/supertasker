@@ -5,6 +5,8 @@ from pydantic import BaseModel, ConfigDict
 class CategoryBase(BaseModel):
     name: str
     color: str
+    preferred_start_hour: int | None = None
+    preferred_end_hour: int | None = None
 
 
 class CategoryCreate(CategoryBase):
