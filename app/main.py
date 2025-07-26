@@ -1065,6 +1065,8 @@ class TaskPlanner:
             if earliest is not None:
                 start_candidate = min(start_candidate, earliest)
         start_day = max(now.date(), start_candidate)
+        if start_day > last_work_day:
+            start_day = last_work_day
         start_day = self._next_day_by_free_time(
             start_day,
             last_work_day,
