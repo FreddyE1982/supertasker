@@ -1,12 +1,14 @@
-import subprocess
-import time
-import requests
-import os
-import sys
 import math
-from datetime import date, timedelta, datetime, time as dtime
+import os
+import subprocess
+import sys
+import time
+from datetime import date, datetime
+from datetime import time as dtime
+from datetime import timedelta
 
 import pytest
+import requests
 
 
 def wait_for_api(url: str, timeout: float = 5.0):
@@ -1389,7 +1391,9 @@ def test_session_count_weight(monkeypatch):
     assert r.status_code == 200
     first_task = r.json()
     first_day = datetime.fromisoformat(
-        requests.get(f"{API_URL}/tasks/{first_task['id']}/focus_sessions").json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{first_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).date()
 
     second = base | {"title": "Base2", "session_count_weight": 5}
@@ -1397,6 +1401,8 @@ def test_session_count_weight(monkeypatch):
     assert r.status_code == 200
     second_task = r.json()
     second_day = datetime.fromisoformat(
-        requests.get(f"{API_URL}/tasks/{second_task['id']}/focus_sessions").json()[0]["start_time"]
+        requests.get(f"{API_URL}/tasks/{second_task['id']}/focus_sessions").json()[0][
+            "start_time"
+        ]
     ).date()
     assert second_day > first_day

@@ -1,11 +1,12 @@
-from datetime import datetime, date, time, timedelta
-import os
 import math
-from fastapi import FastAPI, HTTPException, Depends
+import os
+from datetime import date, datetime, time, timedelta
+
+from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
 from . import models, schemas
-from .database import SessionLocal, engine, Base
+from .database import Base, SessionLocal, engine
 
 Base.metadata.create_all(bind=engine)
 
@@ -433,17 +434,17 @@ class TaskPlanner:
         day_start = day_start - timedelta(minutes=day_start.minute % step)
         day_end = aligned.replace(hour=end_hour, minute=0)
         best = None
-        best_energy = -1
+        best_energy: float = -1.0
         candidate = day_start
         duration = timedelta(minutes=session_len)
         while candidate + duration <= day_end:
             if not self._conflicts(
                 candidate, candidate + duration, events, buffer_minutes
             ):
-                energy = (
-                    energy_curve[candidate.hour]
+                energy: float = (
+                    float(energy_curve[candidate.hour])
                     if energy_curve and len(energy_curve) == 24
-                    else 1
+                    else 1.0
                 )
                 if hist:
                     energy *= 1 + productivity_weight * (hist[candidate.hour] - 0.5) * 2
@@ -1101,15 +1102,15 @@ class TaskPlanner:
                     now = self._align_category_window(
                         now, session_len, cat_start, cat_end
                     )
-                    sessions: list[tuple[datetime, datetime]] = []
+                    sessions_block: list[tuple[datetime, datetime]] = []
                     since_break = 0
                     for _ in range(needed):
                         start = now
                         end = start + timedelta(minutes=session_len)
-                        sessions.append((start, end))
+                        sessions_block.append((start, end))
                         events.append((start, end))
                         now = end
-                        if len(sessions) == needed:
+                        if len(sessions_block) == needed:
                             break
                         break_len = (
                             long_break
@@ -1123,7 +1124,7 @@ class TaskPlanner:
                         )
                         now = break_end + timedelta(minutes=buffer_minutes)
                         since_break = (since_break + 1) % long_interval
-                    return sessions
+                    return sessions_block
                 day += timedelta(days=1)
         now = self._next_work_time(
             datetime.combine(start_day, time(hour=preferred)),

@@ -23,6 +23,7 @@ uvicorn app.main:app
 ```
 
 The API will be available at `http://localhost:8000`.
+The API exposes an OpenAPI schema at `http://localhost:8000/openapi.json` and interactive docs at `http://localhost:8000/docs`.
 
 ## Running the Streamlit GUI
 
@@ -43,6 +44,19 @@ To run only the GUI tests:
 ```bash
 pytest tests/test_gui.py
 ```
+Run tests with coverage:
+```bash
+coverage run -m pytest
+coverage html
+```
+Coverage reports appear in `htmlcov`.
+
+This project uses pre-commit hooks for linting, formatting and type checking. Install them with:
+```bash
+pre-commit install
+```
+The hooks enforce Black formatting, isort import ordering, flake8 style checks and mypy type analysis.
+
 
 ## Automatic Dependency Installation
 
