@@ -1,22 +1,24 @@
+from pathlib import Path
+
+
 class AutoInstaller:
     """Install missing dependencies found in Python files."""
 
     def __init__(self) -> None:
+        import os
         from importlib.util import find_spec
         from pathlib import Path
-        import os
 
         path_str = os.getenv("AUTOINSTALL_PATH", Path(__file__).resolve().parent)
         self.root = Path(path_str)
         self._find_spec = find_spec
         self._scan_and_install()
 
-    def _collect_files(self) -> list["Path"]:
-        from pathlib import Path
+    def _collect_files(self) -> list[Path]:
 
         return [p for p in self.root.rglob("*.py") if p.is_file()]
 
-    def _parse_imports(self, file_path: "Path") -> set[str]:
+    def _parse_imports(self, file_path: Path) -> set[str]:
         import ast
 
         modules: set[str] = set()
@@ -55,4 +57,3 @@ class AutoInstaller:
 
 
 AutoInstaller()
-

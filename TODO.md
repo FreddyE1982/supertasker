@@ -37,15 +37,15 @@ The following steps aim to enhance the calendar and task planning application. E
 33. [ ] Add Slack notification integration
 34. [ ] Provide webhook support for custom integrations
 35. [ ] Add CLI tool for managing tasks
-36. [ ] Document REST API with OpenAPI schema
+36. [x] Document REST API with OpenAPI schema
 37. [ ] Generate API client from OpenAPI spec
 38. [ ] Add CI workflow for automated testing
-39. [ ] Add pre-commit hooks for linting
-40. [ ] Enforce formatting with Black
-41. [ ] Enforce import order with isort
-42. [ ] Track code coverage with coverage.py
+39. [x] Add pre-commit hooks for linting
+40. [x] Enforce formatting with Black
+41. [x] Enforce import order with isort
+42. [x] Track code coverage with coverage.py
 43. [ ] Enforce 100% test coverage
-44. [ ] Add static type checking with mypy
+44. [x] Add static type checking with mypy
 45. [ ] Introduce dataclasses where appropriate
 46. [ ] Refactor large functions into smaller units
 47. [ ] Add logging configuration options

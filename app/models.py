@@ -1,14 +1,15 @@
 from sqlalchemy import (
+    Boolean,
     Column,
+    Date,
+    DateTime,
+    ForeignKey,
     Integer,
     String,
-    DateTime,
-    Date,
     Time,
-    Boolean,
-    ForeignKey,
 )
 from sqlalchemy.orm import relationship
+
 from .database import Base
 
 
@@ -22,8 +23,9 @@ class Category(Base):
     preferred_end_hour = Column(Integer, nullable=True)
     energy_curve = Column(String, nullable=True)
 
+
 class Appointment(Base):
-    __tablename__ = 'appointments'
+    __tablename__ = "appointments"
 
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String, nullable=False)
@@ -54,7 +56,9 @@ class Task(Base):
     worked_on = Column(Boolean, default=False)
     paused = Column(Boolean, default=False)
 
-    subtasks = relationship("Subtask", back_populates="task", cascade="all, delete-orphan")
+    subtasks = relationship(
+        "Subtask", back_populates="task", cascade="all, delete-orphan"
+    )
     focus_sessions = relationship(
         "FocusSession",
         back_populates="task",

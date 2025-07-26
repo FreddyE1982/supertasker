@@ -1,8 +1,11 @@
-import streamlit as st
-import requests
-from datetime import datetime, date, time as dtime, timedelta
 import calendar
 import os
+from datetime import date, datetime
+from datetime import time as dtime
+from datetime import timedelta
+
+import requests
+import streamlit as st
 from streamlit_calendar import calendar as st_calendar
 
 API_URL = "http://localhost:8000"
@@ -120,10 +123,14 @@ with tabs[0]:
                     ),
                     "None",
                 )
-                options = ["None"] + list(cat_opts.keys())
-                idx = options.index(current_name) if current_name in options else 0
+                cat_options = ["None"] + list(cat_opts.keys())
+                idx = (
+                    cat_options.index(current_name)
+                    if current_name in cat_options
+                    else 0
+                )
                 cat_name = st.selectbox(
-                    "Category", options, index=idx, key=f'cat_{appt["id"]}'
+                    "Category", cat_options, index=idx, key=f'cat_{appt["id"]}'
                 )
                 category_id = cat_opts.get(cat_name)
                 start_date = st.date_input(
@@ -294,14 +301,14 @@ with tabs[1]:
                 "energy_curve": [int(x) for x in p_curve.split(",") if x.strip()],
                 "energy_day_order_weight": float(p_day_weight),
                 "transition_buffer_minutes": int(p_buffer),
-            "intelligent_transition_buffer": bool(p_int_buffer),
-            "category_productivity_weight": float(p_cat_prod),
-            "spaced_repetition_factor": float(p_spaced),
-            "session_count_weight": float(p_sess_weight),
-            "difficulty_load_weight": float(p_diff_load_weight),
-            "energy_load_weight": float(p_energy_load_weight),
-            "category_id": p_category_id,
-        }
+                "intelligent_transition_buffer": bool(p_int_buffer),
+                "category_productivity_weight": float(p_cat_prod),
+                "spaced_repetition_factor": float(p_spaced),
+                "session_count_weight": float(p_sess_weight),
+                "difficulty_load_weight": float(p_diff_load_weight),
+                "energy_load_weight": float(p_energy_load_weight),
+                "category_id": p_category_id,
+            }
             r = requests.post(f"{API_URL}/tasks/plan", json=data)
             if r.status_code == 200:
                 st.success("Planned")
@@ -415,10 +422,14 @@ with tabs[1]:
                         ),
                         "None",
                     )
-                    options = ["None"] + list(cat_opts.keys())
-                    idx = options.index(current_name) if current_name in options else 0
+                    cat_options = ["None"] + list(cat_opts.keys())
+                    idx = (
+                        cat_options.index(current_name)
+                        if current_name in cat_options
+                        else 0
+                    )
                     category_name = st.selectbox(
-                        "Category", options, index=idx, key=f'task_cat_{task["id"]}'
+                        "Category", cat_options, index=idx, key=f'task_cat_{task["id"]}'
                     )
                     category_id = cat_opts.get(category_name)
                     pdiff = st.number_input(
