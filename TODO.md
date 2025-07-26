@@ -6,11 +6,11 @@ The following steps aim to enhance the calendar and task planning application. E
 2. [ ] Implement OAuth login providers
 3. [ ] Secure API endpoints with JWT tokens
 4. [ ] Encrypt sensitive configuration variables
-5. [ ] Create a Dockerfile for deployment
-6. [ ] Write deployment documentation
-7. [ ] Add persistent storage using PostgreSQL
-8. [ ] Migrate SQLite models to PostgreSQL
-9. [ ] Implement Alembic migrations
+5. [x] Create a Dockerfile for deployment
+6. [x] Write deployment documentation
+7. [x] Add persistent storage using PostgreSQL
+8. [x] Migrate SQLite models to PostgreSQL
+9. [x] Implement Alembic migrations
 10. [ ] Add rate limiting for API endpoints
 11. [ ] Implement background worker with Celery
 12. [ ] Schedule periodic cleanup jobs

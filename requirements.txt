@@ -6,3 +6,5 @@ requests
 streamlit
 streamlit-calendar
 pyyaml
+psycopg2-binary
+alembic
