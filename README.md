@@ -25,6 +25,10 @@ uvicorn app.main:app
 The API will be available at `http://localhost:8000`.
 The API exposes an OpenAPI schema at `http://localhost:8000/openapi.json` and interactive docs at `http://localhost:8000/docs`.
 
+### Logging
+
+Set the log level with `LOG_LEVEL` in `config.yaml` or as an environment variable.
+
 ## Running the Streamlit GUI
 
 ```bash
@@ -201,6 +205,14 @@ work always happens when focus is expected to be strongest.
 
 ## Command Line Interface
 Use `python cli.py add` and `python cli.py list` to manage tasks from the terminal. Configure the API URL in `config.yaml` or via `API_URL` environment variable.
+
+## Generated API Client
+
+The `openapi_client` package is generated from the OpenAPI schema using `openapi-python-client`. Re-generate it with:
+
+```bash
+openapi-python-client generate --url http://localhost:8000/openapi.json --output-path openapi_client
+```
 
 
 ## Docker Compose
