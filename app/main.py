@@ -1,3 +1,4 @@
+import logging
 import math
 import os
 from datetime import date, datetime, time, timedelta
@@ -7,6 +8,10 @@ from sqlalchemy.orm import Session
 
 from . import models, schemas
 from .database import Base, SessionLocal, engine
+from .config import ConfigLoader, setup_logging
+
+settings = ConfigLoader().load()
+setup_logging(settings.log_level)
 
 Base.metadata.create_all(bind=engine)
 

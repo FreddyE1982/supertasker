@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 from typing import Any
 
 import requests
 
-from app.config import ConfigLoader
+from app.config import ConfigLoader, setup_logging
 
 
 class BaseCLI:
@@ -32,6 +33,7 @@ class TaskCLI(BaseCLI):
 
     def __init__(self) -> None:
         self.config = ConfigLoader().load()
+        setup_logging(self.config.log_level)
         super().__init__()
 
     def configure(self) -> None:
