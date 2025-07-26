@@ -36,7 +36,7 @@ The following steps aim to enhance the calendar and task planning application. E
 32. [ ] Integrate with Outlook Calendar API
 33. [ ] Add Slack notification integration
 34. [ ] Provide webhook support for custom integrations
-35. [ ] Add CLI tool for managing tasks
+35. [x] Add CLI tool for managing tasks
 36. [x] Document REST API with OpenAPI schema
 37. [ ] Generate API client from OpenAPI spec
 38. [ ] Add CI workflow for automated testing
@@ -46,7 +46,7 @@ The following steps aim to enhance the calendar and task planning application. E
 42. [x] Track code coverage with coverage.py
 43. [ ] Enforce 100% test coverage
 44. [x] Add static type checking with mypy
-45. [ ] Introduce dataclasses where appropriate
+45. [x] Introduce dataclasses where appropriate
 46. [ ] Refactor large functions into smaller units
 47. [ ] Add logging configuration options
 48. [ ] Create admin dashboard for system metrics
@@ -82,23 +82,23 @@ The following steps aim to enhance the calendar and task planning application. E
 78. [ ] Integrate time tracking for tasks
 79. [ ] Provide invoice generation for tracked time
 80. [ ] Allow partial task completion percentages
-81. [ ] Create user guide documentation
-82. [ ] Provide troubleshooting FAQ
+81. [x] Create user guide documentation
+82. [x] Provide troubleshooting FAQ
 83. [ ] Translate documentation into German
 84. [ ] Add screenshot walkthrough to README
-85. [ ] Provide example Docker Compose setup
-86. [ ] Add YAML configuration file support
-87. [ ] Allow environment variable overrides
+85. [x] Provide example Docker Compose setup
+86. [x] Add YAML configuration file support
+87. [x] Allow environment variable overrides
 88. [ ] Provide automated backup feature
 89. [ ] Support restoring from backup
 90. [ ] Add end-to-end Cypress tests for GUI
 91. [ ] Implement fuzz testing for API inputs
 92. [ ] Add security scanning to CI
-93. [ ] Integrate dependency updates with Dependabot
-94. [ ] Provide release notes for each version
+93. [x] Integrate dependency updates with Dependabot
+94. [x] Provide release notes for each version
 95. [ ] Add changelog management with towncrier
-96. [ ] Set up issue templates on GitHub
-97. [ ] Add pull request templates
-98. [ ] Provide contribution guidelines
+96. [x] Set up issue templates on GitHub
+97. [x] Add pull request templates
+98. [x] Provide contribution guidelines
 99. [ ] Run user surveys to gather feedback
 100. [ ] Plan marketing strategy for launch
