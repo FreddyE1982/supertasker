@@ -198,3 +198,14 @@ Providing an ``ENERGY_CURVE`` lets the planner map task importance to these ener
 Enabling ``INTELLIGENT_SLOT_SELECTION`` further refines placement by scanning
 all free slots on a day and picking the time with the highest energy value so
 work always happens when focus is expected to be strongest.
+
+## Command Line Interface
+Use `python cli.py add` and `python cli.py list` to manage tasks from the terminal. Configure the API URL in `config.yaml` or via `API_URL` environment variable.
+
+
+## Docker Compose
+An example `docker-compose.yml` is provided to run the API in a container.
+
+
+See [USER_GUIDE.md](USER_GUIDE.md) for usage instructions and [FAQ.md](FAQ.md) for troubleshooting.
+
