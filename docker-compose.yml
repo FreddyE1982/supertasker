@@ -5,6 +5,22 @@ services:
     working_dir: /code
     volumes:
       - .:/code
-    command: bash -c "pip install -r requirements.txt && uvicorn app.main:app --host 0.0.0.0"
+    command: bash -c "pip install -r requirements.txt && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0"
     ports:
       - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql+psycopg2://postgres:postgres@db:5432/appointments
+    depends_on:
+      - db
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: appointments
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

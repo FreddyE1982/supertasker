@@ -218,6 +218,11 @@ openapi-python-client generate --url http://localhost:8000/openapi.json --output
 ## Docker Compose
 An example `docker-compose.yml` is provided to run the API in a container.
 
+## Deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for instructions on building the Docker image
+and running the full stack with PostgreSQL.
+
 
 See [USER_GUIDE.md](USER_GUIDE.md) for usage instructions and [FAQ.md](FAQ.md) for troubleshooting.
 
