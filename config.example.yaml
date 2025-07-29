@@ -1,1 +1,4 @@
 api_url: http://localhost:8000
+log_level: INFO
+secret_key: supersecret
+access_token_expire_minutes: 30

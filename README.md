@@ -27,6 +27,28 @@ uvicorn app.main:app
 The API will be available at `http://localhost:8000`.
 The API exposes an OpenAPI schema at `http://localhost:8000/openapi.json` and interactive docs at `http://localhost:8000/docs`.
 
+### Authentication
+
+Create an account via `POST /users`:
+
+```bash
+curl -X POST -H "Content-Type: application/json" \
+    -d '{"username": "alice", "email": "alice@example.com", "password": "secret"}' \
+    http://localhost:8000/users
+```
+
+Obtain a JWT token with `POST /token` using form data:
+
+```bash
+curl -X POST -d 'username=alice&password=secret' http://localhost:8000/token
+```
+
+Include the returned token in the `Authorization` header to access protected endpoints:
+
+```bash
+curl -H "Authorization: Bearer <token>" http://localhost:8000/appointments
+```
+
 ### Logging
 
 Set the log level with `LOG_LEVEL` in `config.yaml` or as an environment variable.

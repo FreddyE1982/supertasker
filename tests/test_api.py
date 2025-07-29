@@ -35,6 +35,8 @@ def start_server(monkeypatch, request):
     marker = request.node.get_closest_marker("env")
     if marker:
         env.update(marker.kwargs)
+    if "DISABLE_AUTH" not in env:
+        env["DISABLE_AUTH"] = "1"
     proc = subprocess.Popen([sys.executable, "-m", "uvicorn", "app.main:app"], env=env)
     assert wait_for_api(f"{API_URL}/appointments")
     yield

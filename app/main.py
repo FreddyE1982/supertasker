@@ -3,7 +3,17 @@ import math
 import os
 from datetime import date, datetime, time, timedelta
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    HTTPException,
+    Request,
+    Response,
+)
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import JWTError, jwt
+from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -18,6 +28,10 @@ setup_logging(settings.log_level)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI()
+router = APIRouter()
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 @app.middleware("http")
@@ -40,6 +54,51 @@ def get_db():
 
 def rate_limit(request: Request, db: Session = Depends(get_db)):
     RateLimiter(db)(request)
+
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password: str) -> str:
+    return pwd_context.hash(password)
+
+
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
+    to_encode = data.copy()
+    expire = datetime.utcnow() + (
+        expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
+    )
+    to_encode.update({"exp": expire})
+    return jwt.encode(to_encode, settings.secret_key, algorithm="HS256")
+
+
+def authenticate_user(db: Session, username: str, password: str) -> models.User | None:
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if not user or not verify_password(password, user.hashed_password):
+        return None
+    return user
+
+
+def get_current_user(
+    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+) -> models.User | None:
+    if os.getenv("DISABLE_AUTH", "0") in {"1", "true", "True"}:
+        return None
+    credentials_exception = HTTPException(
+        status_code=401, detail="Could not validate credentials"
+    )
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+        username: str | None = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+    user = db.query(models.User).filter(models.User.username == username).first()
+    if user is None:
+        raise credentials_exception
+    return user
 
 
 class FocusSessionService:
@@ -1518,7 +1577,7 @@ class TaskPlanner:
         return task
 
 
-@app.post("/categories", response_model=schemas.Category)
+@router.post("/categories", response_model=schemas.Category)
 def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
     data = category.dict()
     curve = data.pop("energy_curve", None)
@@ -1535,7 +1594,7 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
     return db_cat
 
 
-@app.post("/tags", response_model=schemas.Tag)
+@router.post("/tags", response_model=schemas.Tag)
 def create_tag(tag: schemas.TagCreate, db: Session = Depends(get_db)):
     db_tag = models.Tag(**tag.dict())
     db.add(db_tag)
@@ -1544,12 +1603,12 @@ def create_tag(tag: schemas.TagCreate, db: Session = Depends(get_db)):
     return db_tag
 
 
-@app.get("/tags", response_model=list[schemas.Tag])
+@router.get("/tags", response_model=list[schemas.Tag])
 def list_tags(db: Session = Depends(get_db)):
     return db.query(models.Tag).all()
 
 
-@app.get("/categories", response_model=list[schemas.Category])
+@router.get("/categories", response_model=list[schemas.Category])
 def list_categories(db: Session = Depends(get_db)):
     cats = db.query(models.Category).all()
     for c in cats:
@@ -1560,7 +1619,7 @@ def list_categories(db: Session = Depends(get_db)):
     return cats
 
 
-@app.put("/categories/{category_id}", response_model=schemas.Category)
+@router.put("/categories/{category_id}", response_model=schemas.Category)
 def update_category(
     category_id: int, data: schemas.CategoryCreate, db: Session = Depends(get_db)
 ):
@@ -1582,7 +1641,7 @@ def update_category(
     return db_cat
 
 
-@app.post("/appointments", response_model=schemas.Appointment)
+@router.post("/appointments", response_model=schemas.Appointment)
 def create_appointment(
     appointment: schemas.AppointmentCreate, db: Session = Depends(get_db)
 ):
@@ -1607,12 +1666,12 @@ def create_appointment(
     return db_app
 
 
-@app.get("/appointments", response_model=list[schemas.Appointment])
+@router.get("/appointments", response_model=list[schemas.Appointment])
 def list_appointments(db: Session = Depends(get_db)):
     return db.query(models.Appointment).all()
 
 
-@app.get("/appointments/export/ical")
+@router.get("/appointments/export/ical")
 def export_ical(db: Session = Depends(get_db)):
     from icalendar import Calendar, Event
 
@@ -1627,7 +1686,7 @@ def export_ical(db: Session = Depends(get_db)):
     return Response(cal.to_ical(), media_type="text/calendar")
 
 
-@app.put("/appointments/{appointment_id}", response_model=schemas.Appointment)
+@router.put("/appointments/{appointment_id}", response_model=schemas.Appointment)
 def update_appointment(
     appointment_id: int,
     appointment: schemas.AppointmentUpdate,
@@ -1663,7 +1722,7 @@ def update_appointment(
     return db_app
 
 
-@app.delete("/appointments/{appointment_id}")
+@router.delete("/appointments/{appointment_id}")
 def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
     db_app = (
         db.query(models.Appointment)
@@ -1677,7 +1736,7 @@ def delete_appointment(appointment_id: int, db: Session = Depends(get_db)):
     return {"detail": "Deleted"}
 
 
-@app.post("/tasks", response_model=schemas.Task)
+@router.post("/tasks", response_model=schemas.Task)
 def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
     if task.category_id is not None:
         cat = (
@@ -1700,7 +1759,7 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
     return db_task
 
 
-@app.post("/tasks/plan", response_model=schemas.Task)
+@router.post("/tasks/plan", response_model=schemas.Task)
 def plan_task(data: schemas.PlanTaskCreate, db: Session = Depends(get_db)):
     if data.category_id is not None:
         cat = (
@@ -1714,12 +1773,12 @@ def plan_task(data: schemas.PlanTaskCreate, db: Session = Depends(get_db)):
     return planner.plan(data)
 
 
-@app.get("/tasks", response_model=list[schemas.Task])
+@router.get("/tasks", response_model=list[schemas.Task])
 def list_tasks(db: Session = Depends(get_db)):
     return db.query(models.Task).all()
 
 
-@app.get("/tasks/search", response_model=list[schemas.Task])
+@router.get("/tasks/search", response_model=list[schemas.Task])
 def search_tasks(query: str, db: Session = Depends(get_db)):
     return (
         db.query(models.Task)
@@ -1736,7 +1795,7 @@ class BulkUpdateItem(BaseModel):
     data: schemas.TaskUpdate
 
 
-@app.post("/tasks/bulk_update", response_model=list[schemas.Task])
+@router.post("/tasks/bulk_update", response_model=list[schemas.Task])
 def bulk_update_tasks(items: list[BulkUpdateItem], db: Session = Depends(get_db)):
     updated = []
     for item in items:
@@ -1759,7 +1818,7 @@ def bulk_update_tasks(items: list[BulkUpdateItem], db: Session = Depends(get_db)
     return updated
 
 
-@app.put("/tasks/{task_id}", response_model=schemas.Task)
+@router.put("/tasks/{task_id}", response_model=schemas.Task)
 def update_task(task_id: int, task: schemas.TaskUpdate, db: Session = Depends(get_db)):
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
@@ -1787,7 +1846,7 @@ def update_task(task_id: int, task: schemas.TaskUpdate, db: Session = Depends(ge
     return db_task
 
 
-@app.delete("/tasks/{task_id}")
+@router.delete("/tasks/{task_id}")
 def delete_task(task_id: int, db: Session = Depends(get_db)):
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not db_task:
@@ -1797,7 +1856,7 @@ def delete_task(task_id: int, db: Session = Depends(get_db)):
     return {"detail": "Deleted"}
 
 
-@app.post("/tasks/{task_id}/subtasks", response_model=schemas.Subtask)
+@router.post("/tasks/{task_id}/subtasks", response_model=schemas.Subtask)
 def create_subtask(
     task_id: int, subtask: schemas.SubtaskCreate, db: Session = Depends(get_db)
 ):
@@ -1811,12 +1870,12 @@ def create_subtask(
     return db_sub
 
 
-@app.get("/tasks/{task_id}/subtasks", response_model=list[schemas.Subtask])
+@router.get("/tasks/{task_id}/subtasks", response_model=list[schemas.Subtask])
 def list_subtasks(task_id: int, db: Session = Depends(get_db)):
     return db.query(models.Subtask).filter(models.Subtask.task_id == task_id).all()
 
 
-@app.put("/tasks/{task_id}/subtasks/{subtask_id}", response_model=schemas.Subtask)
+@router.put("/tasks/{task_id}/subtasks/{subtask_id}", response_model=schemas.Subtask)
 def update_subtask(
     task_id: int,
     subtask_id: int,
@@ -1837,7 +1896,7 @@ def update_subtask(
     return db_sub
 
 
-@app.delete("/tasks/{task_id}/subtasks/{subtask_id}")
+@router.delete("/tasks/{task_id}/subtasks/{subtask_id}")
 def delete_subtask(task_id: int, subtask_id: int, db: Session = Depends(get_db)):
     db_sub = (
         db.query(models.Subtask)
@@ -1851,7 +1910,7 @@ def delete_subtask(task_id: int, subtask_id: int, db: Session = Depends(get_db))
     return {"detail": "Deleted"}
 
 
-@app.post("/tasks/{task_id}/focus_sessions", response_model=schemas.FocusSession)
+@router.post("/tasks/{task_id}/focus_sessions", response_model=schemas.FocusSession)
 def create_focus_session(
     task_id: int, fs: schemas.FocusSessionCreate, db: Session = Depends(get_db)
 ):
@@ -1859,13 +1918,15 @@ def create_focus_session(
     return service.create(task_id, fs.duration_minutes, fs.start_time)
 
 
-@app.get("/tasks/{task_id}/focus_sessions", response_model=list[schemas.FocusSession])
+@router.get(
+    "/tasks/{task_id}/focus_sessions", response_model=list[schemas.FocusSession]
+)
 def list_focus_sessions(task_id: int, db: Session = Depends(get_db)):
     service = FocusSessionService(db)
     return service.list(task_id)
 
 
-@app.put(
+@router.put(
     "/tasks/{task_id}/focus_sessions/{session_id}", response_model=schemas.FocusSession
 )
 def update_focus_session(
@@ -1878,14 +1939,14 @@ def update_focus_session(
     return service.update(task_id, session_id, fs)
 
 
-@app.delete("/tasks/{task_id}/focus_sessions/{session_id}")
+@router.delete("/tasks/{task_id}/focus_sessions/{session_id}")
 def delete_focus_session(task_id: int, session_id: int, db: Session = Depends(get_db)):
     service = FocusSessionService(db)
     service.delete(task_id, session_id)
     return {"detail": "Deleted"}
 
 
-@app.post("/tasks/{task_id}/tags/{tag_id}", response_model=schemas.Task)
+@router.post("/tasks/{task_id}/tags/{tag_id}", response_model=schemas.Task)
 def add_task_tag(task_id: int, tag_id: int, db: Session = Depends(get_db)):
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
@@ -1898,7 +1959,7 @@ def add_task_tag(task_id: int, tag_id: int, db: Session = Depends(get_db)):
     return task
 
 
-@app.delete("/tasks/{task_id}/tags/{tag_id}", response_model=schemas.Task)
+@router.delete("/tasks/{task_id}/tags/{tag_id}", response_model=schemas.Task)
 def remove_task_tag(task_id: int, tag_id: int, db: Session = Depends(get_db)):
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
@@ -1911,7 +1972,7 @@ def remove_task_tag(task_id: int, tag_id: int, db: Session = Depends(get_db)):
     return task
 
 
-@app.get("/tasks/{task_id}/tags", response_model=list[schemas.Tag])
+@router.get("/tasks/{task_id}/tags", response_model=list[schemas.Tag])
 def list_task_tags(task_id: int, db: Session = Depends(get_db)):
     task = db.query(models.Task).filter(models.Task.id == task_id).first()
     if not task:
@@ -1919,7 +1980,9 @@ def list_task_tags(task_id: int, db: Session = Depends(get_db)):
     return task.tags
 
 
-@app.post("/appointments/{appt_id}/tags/{tag_id}", response_model=schemas.Appointment)
+@router.post(
+    "/appointments/{appt_id}/tags/{tag_id}", response_model=schemas.Appointment
+)
 def add_appointment_tag(appt_id: int, tag_id: int, db: Session = Depends(get_db)):
     appt = db.query(models.Appointment).filter(models.Appointment.id == appt_id).first()
     tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
@@ -1932,7 +1995,9 @@ def add_appointment_tag(appt_id: int, tag_id: int, db: Session = Depends(get_db)
     return appt
 
 
-@app.delete("/appointments/{appt_id}/tags/{tag_id}", response_model=schemas.Appointment)
+@router.delete(
+    "/appointments/{appt_id}/tags/{tag_id}", response_model=schemas.Appointment
+)
 def remove_appointment_tag(appt_id: int, tag_id: int, db: Session = Depends(get_db)):
     appt = db.query(models.Appointment).filter(models.Appointment.id == appt_id).first()
     tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
@@ -1945,7 +2010,7 @@ def remove_appointment_tag(appt_id: int, tag_id: int, db: Session = Depends(get_
     return appt
 
 
-@app.get("/appointments/{appt_id}/tags", response_model=list[schemas.Tag])
+@router.get("/appointments/{appt_id}/tags", response_model=list[schemas.Tag])
 def list_appointment_tags(appt_id: int, db: Session = Depends(get_db)):
     appt = db.query(models.Appointment).filter(models.Appointment.id == appt_id).first()
     if not appt:
@@ -1953,13 +2018,39 @@ def list_appointment_tags(appt_id: int, db: Session = Depends(get_db)):
     return appt.tags
 
 
-@app.get("/admin/stats")
+@router.get("/admin/stats")
 def get_stats(db: Session = Depends(get_db)):
     service = MetricsService(db)
     return service.stats()
 
 
-@app.get("/admin/metrics")
+@router.get("/admin/metrics")
 def prometheus_metrics(db: Session = Depends(get_db)):
     service = MetricsService(db)
     return service.prometheus()
+
+
+@app.post("/users", response_model=schemas.User)
+def create_user(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    hashed = get_password_hash(user.password)
+    db_user = models.User(
+        username=user.username, email=user.email, hashed_password=hashed
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+    return db_user
+
+
+@app.post("/token", response_model=schemas.Token)
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)
+):
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
+        raise HTTPException(status_code=400, detail="Incorrect username or password")
+    access_token = create_access_token({"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+
+app.include_router(router, dependencies=[Depends(get_current_user)])

@@ -2,9 +2,9 @@
 
 The following steps aim to enhance the calendar and task planning application. Each item begins unchecked. As tasks are completed they will be marked with `[x]`.
 
-1. [ ] Add user authentication and account system
+1. [x] Add user authentication and account system
 2. [ ] Implement OAuth login providers
-3. [ ] Secure API endpoints with JWT tokens
+3. [x] Secure API endpoints with JWT tokens
 4. [ ] Encrypt sensitive configuration variables
 5. [x] Create a Dockerfile for deployment
 6. [x] Write deployment documentation
