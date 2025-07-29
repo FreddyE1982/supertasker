@@ -12,6 +12,33 @@ API_URL = "http://localhost:8000"
 
 st.title("Calendar App")
 
+if "dark-mode" not in st.session_state:
+    st.session_state["dark-mode"] = False
+
+st.checkbox("Dark Mode", key="dark-mode")
+
+def apply_theme() -> None:
+    """Apply light or dark theme based on session state."""
+    if st.session_state["dark-mode"]:
+        bg = "#0e1117"
+        fg = "#ffffff"
+    else:
+        bg = "#ffffff"
+        fg = "#000000"
+    st.markdown(
+        f"""
+        <style>
+        html, body, [data-testid="stApp"] {{
+            background-color: {bg};
+            color: {fg};
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+apply_theme()
+
 if "appointments" not in st.session_state:
     st.session_state["appointments"] = []
 if "categories" not in st.session_state:

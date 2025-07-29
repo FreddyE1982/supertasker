@@ -24,7 +24,7 @@ The following steps aim to enhance the calendar and task planning application. E
 20. [ ] Add time zone handling for appointments
 21. [ ] Support multiple languages in the GUI
 22. [ ] Improve accessibility with ARIA labels
-23. [ ] Add dark mode theme option
+23. [x] Add dark mode theme option
 24. [ ] Provide keyboard shortcuts for quick actions
 25. [ ] Improve mobile responsiveness of GUI
 26. [ ] Add offline support with local storage

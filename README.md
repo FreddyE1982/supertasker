@@ -35,6 +35,11 @@ Set the log level with `LOG_LEVEL` in `config.yaml` or as an environment variabl
 streamlit run streamlit_app.py
 ```
 
+### Dark Mode
+
+The GUI supports an optional dark theme. Enable it via the **Dark Mode**
+checkbox at the top of the application.
+
 ## Running Tests
 
 To run all tests:

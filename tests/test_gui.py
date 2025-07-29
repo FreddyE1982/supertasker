@@ -45,6 +45,9 @@ def test_full_gui_interaction():
     try:
         at = AppTest.from_file("streamlit_app.py").run()
 
+        # enable dark mode
+        at = at.checkbox(key="dark-mode").check().run()
+
         # create category
         cat_tab = next(t for t in at.tabs if t.label == "Manage Categories")
         at = cat_tab.text_input(key="cat-name").input("Work").run()
