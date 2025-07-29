@@ -3,11 +3,10 @@ import subprocess
 import sys
 import time
 from datetime import date, timedelta
+from pathlib import Path
 
 import pytest
 import requests
-
-from pathlib import Path
 
 API_URL = "http://localhost:8000"
 
@@ -47,6 +46,7 @@ def wait_for_log(path: Path, timeout: float = 5.0) -> bool:
             return True
         time.sleep(0.1)
     return False
+
 
 TODAY = date.today()
 TOMORROW = TODAY + timedelta(days=1)

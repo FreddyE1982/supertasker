@@ -11,22 +11,22 @@ The following steps aim to enhance the calendar and task planning application. E
 7. [x] Add persistent storage using PostgreSQL
 8. [x] Migrate SQLite models to PostgreSQL
 9. [x] Implement Alembic migrations
-10. [ ] Add rate limiting for API endpoints
+10. [x] Add rate limiting for API endpoints
 11. [ ] Implement background worker with Celery
 12. [ ] Schedule periodic cleanup jobs
 13. [ ] Add email notifications for upcoming tasks
 14. [ ] Add SMS notifications via Twilio
 15. [ ] Allow user configurable notification channels
 16. [ ] Provide in-app notification centre
-17. [ ] Add calendar export to iCal format
+17. [x] Add calendar export to iCal format
 18. [ ] Import external calendar events
 19. [ ] Implement recurring appointments support
-20. [ ] Add time zone handling for appointments
+20. [x] Add time zone handling for appointments
 21. [ ] Support multiple languages in the GUI
-22. [ ] Improve accessibility with ARIA labels
+22. [x] Improve accessibility with ARIA labels
 23. [x] Add dark mode theme option
-24. [ ] Provide keyboard shortcuts for quick actions
-25. [ ] Improve mobile responsiveness of GUI
+24. [x] Provide keyboard shortcuts for quick actions
+25. [x] Improve mobile responsiveness of GUI
 26. [ ] Add offline support with local storage
 27. [ ] Use service workers for caching
 28. [ ] Add drag-and-drop interface for calendar
@@ -57,10 +57,10 @@ The following steps aim to enhance the calendar and task planning application. E
 53. [ ] Provide real-time updates with WebSockets
 54. [ ] Create public API key system
 55. [ ] Build plugin framework for extensions
-56. [ ] Support tagging of tasks and appointments
-57. [ ] Add search functionality across tasks
+56. [x] Support tagging of tasks and appointments
+57. [x] Add search functionality across tasks
 58. [ ] Implement advanced filter options
-59. [ ] Provide bulk edit operations
+59. [x] Provide bulk edit operations
 60. [ ] Allow custom colour themes per user
 61. [x] Add import/export of configuration
 62. [ ] Implement GDPR data export
@@ -81,7 +81,7 @@ The following steps aim to enhance the calendar and task planning application. E
 77. [ ] Add machine learning to predict optimal times
 78. [ ] Integrate time tracking for tasks
 79. [ ] Provide invoice generation for tracked time
-80. [ ] Allow partial task completion percentages
+80. [x] Allow partial task completion percentages
 81. [x] Create user guide documentation
 82. [x] Provide troubleshooting FAQ
 83. [x] Translate documentation into German
