@@ -62,7 +62,7 @@ The following steps aim to enhance the calendar and task planning application. E
 58. [ ] Implement advanced filter options
 59. [ ] Provide bulk edit operations
 60. [ ] Allow custom colour themes per user
-61. [ ] Add import/export of configuration
+61. [x] Add import/export of configuration
 62. [ ] Implement GDPR data export
 63. [ ] Add data anonymisation utilities
 64. [ ] Provide template tasks for common workflows
@@ -84,7 +84,7 @@ The following steps aim to enhance the calendar and task planning application. E
 80. [ ] Allow partial task completion percentages
 81. [x] Create user guide documentation
 82. [x] Provide troubleshooting FAQ
-83. [ ] Translate documentation into German
+83. [x] Translate documentation into German
 84. [ ] Add screenshot walkthrough to README
 85. [x] Provide example Docker Compose setup
 86. [x] Add YAML configuration file support

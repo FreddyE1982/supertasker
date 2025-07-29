@@ -15,6 +15,7 @@ TODAY = date.today().isoformat()
 
 def wait_for_api(url: str, timeout: float = 5.0):
     import time
+
     import requests
 
     start = time.time()
@@ -49,3 +50,26 @@ def test_cli_add_and_list(server, capsys):
     cli.run(["list"])
     captured = capsys.readouterr()
     assert "Test" in captured.out
+
+
+def test_cli_export_import(tmp_path, capsys):
+    export_path = tmp_path / "export.yaml"
+    cli = TaskCLI()
+    cli.run(["export-config", "--path", str(export_path)])
+    captured = capsys.readouterr()
+    assert export_path.exists()
+    assert "Exported" in captured.out
+
+    updated = {"api_url": "http://example.com", "log_level": "DEBUG"}
+    update_file = tmp_path / "update.yaml"
+    import yaml
+
+    with update_file.open("w", encoding="utf-8") as f:
+        yaml.safe_dump(updated, f)
+    os.environ["CONFIG_FILE"] = str(tmp_path / "config.yaml")
+    cli.run(["import-config", str(update_file)])
+    captured = capsys.readouterr()
+    assert "Imported" in captured.out
+    with open(os.environ["CONFIG_FILE"], "r", encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    assert data == {k: str(v) for k, v in updated.items()}

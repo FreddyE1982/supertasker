@@ -1,4 +1,6 @@
 # Calendar App
+[Deutschsprachige Anleitung](README_DE.md)
+
 
 This project provides a simple calendar application with a REST API and a Streamlit GUI. Users can create, update, delete, and list appointments.
 It also supports managing tasks with optional subtasks. Subtasks are useful for breaking large tasks into smaller steps, which can be helpful for users with ADHD.
