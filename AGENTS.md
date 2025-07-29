@@ -69,6 +69,11 @@ Wenn der Benutzer ausdrücklich die GUI-Tests beauftragt, dürfen nur GUI-releva
 
 Die „alles testen“-Regel ist in diesem Fall temporär außer Kraft.
 
+When testing, any failed tests should be logged into a FAILEDTESTS.md that is persisted.
+
+the agent is NOT to run ANY tests if the agent has not made any changes to code yet.
+if the user says "relevant tests only", then the agent is to run tests that are relevant to the changed code pieces ONLY even if that contradicts another rule
+
 🟦 STREAMLIT GUI – Pflicht zur Visualisierung
 Jede Funktionalität muss auch in der GUI vollständig zugänglich sein.
 
