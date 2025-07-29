@@ -49,8 +49,8 @@ The following steps aim to enhance the calendar and task planning application. E
 45. [x] Introduce dataclasses where appropriate
 46. [ ] Refactor large functions into smaller units
 47. [x] Add logging configuration options
-48. [ ] Create admin dashboard for system metrics
-49. [ ] Expose Prometheus metrics endpoint
+48. [x] Create admin dashboard for system metrics
+49. [x] Expose Prometheus metrics endpoint
 50. [ ] Add Grafana dashboards
 51. [ ] Implement user permissions and roles
 52. [ ] Add sharing of tasks with other users
