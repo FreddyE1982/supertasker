@@ -1406,3 +1406,13 @@ def test_session_count_weight(monkeypatch):
         ]
     ).date()
     assert second_day > first_day
+
+def test_admin_stats_and_metrics():
+    r = requests.get(f"{API_URL}/admin/stats")
+    assert r.status_code == 200
+    data = r.json()
+    assert set(data.keys()) == {"tasks", "appointments", "categories"}
+
+    r = requests.get(f"{API_URL}/admin/metrics")
+    assert r.status_code == 200
+    assert "tasks_total" in r.text

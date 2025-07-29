@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 
 from . import models, schemas
+from .metrics import MetricsService
 from .database import Base, SessionLocal, engine
 from .config import ConfigLoader, setup_logging
 
@@ -1742,3 +1743,15 @@ def delete_focus_session(task_id: int, session_id: int, db: Session = Depends(ge
     service = FocusSessionService(db)
     service.delete(task_id, session_id)
     return {"detail": "Deleted"}
+
+
+@app.get("/admin/stats")
+def get_stats(db: Session = Depends(get_db)):
+    service = MetricsService(db)
+    return service.stats()
+
+
+@app.get("/admin/metrics")
+def prometheus_metrics(db: Session = Depends(get_db)):
+    service = MetricsService(db)
+    return service.prometheus()

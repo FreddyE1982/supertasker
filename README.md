@@ -220,6 +220,10 @@ The `openapi_client` package is generated from the OpenAPI schema using `openapi
 ```bash
 openapi-python-client generate --url http://localhost:8000/openapi.json --output-path openapi_client
 ```
+## Metrics
+A Prometheus metrics endpoint is available at `/admin/metrics`.
+The Streamlit GUI includes an "Admin Dashboard" tab displaying task, appointment and category counts.
+
 
 
 ## Docker Compose

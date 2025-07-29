@@ -51,6 +51,8 @@ if "calendar_date" not in st.session_state:
     st.session_state["calendar_date"] = date.today()
 
 
+if "stats" not in st.session_state:
+    st.session_state["stats"] = {}
 def refresh():
     resp = requests.get(f"{API_URL}/appointments")
     if resp.status_code == 200:
@@ -75,7 +77,14 @@ def refresh_tasks():
         st.session_state["tasks"] = tasks
 
 
+def refresh_stats():
+    resp = requests.get(f"{API_URL}/admin/stats")
+    if resp.status_code == 200:
+        st.session_state["stats"] = resp.json()
+
+
 refresh()
+refresh_stats()
 refresh_categories()
 refresh_tasks()
 
@@ -84,6 +93,7 @@ tabs = st.tabs(
     [
         "Manage Appointments",
         "Manage Tasks",
+        "Admin Dashboard",
         "Calendar",
         "Manage Categories",
     ]
@@ -628,8 +638,14 @@ with tabs[1]:
                     refresh_tasks()
                 else:
                     st.error("Error deleting task")
-
 with tabs[2]:
+    refresh_stats()
+    st.header("System Metrics")
+    st.metric("Tasks", st.session_state["stats"].get("tasks", 0))
+    st.metric("Appointments", st.session_state["stats"].get("appointments", 0))
+    st.metric("Categories", st.session_state["stats"].get("categories", 0))
+
+with tabs[3]:
     view = st.selectbox(
         "View",
         ["Day", "Week", "Two Weeks", "Month"],
@@ -762,7 +778,7 @@ with tabs[2]:
                 refresh()
                 break
 
-with tabs[3]:
+with tabs[4]:
     st.header("Create Category")
     with st.form("cat-form"):
         name = st.text_input("Name", key="cat-name")
