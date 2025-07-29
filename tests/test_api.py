@@ -1407,6 +1407,7 @@ def test_session_count_weight(monkeypatch):
     ).date()
     assert second_day > first_day
 
+
 def test_admin_stats_and_metrics():
     r = requests.get(f"{API_URL}/admin/stats")
     assert r.status_code == 200
@@ -1416,3 +1417,27 @@ def test_admin_stats_and_metrics():
     r = requests.get(f"{API_URL}/admin/metrics")
     assert r.status_code == 200
     assert "tasks_total" in r.text
+
+
+def test_ical_export():
+    appt = {
+        "title": "Meeting",
+        "description": "Discuss",
+        "start_time": datetime.combine(TODAY, dtime(9, 0)).isoformat(),
+        "end_time": datetime.combine(TODAY, dtime(10, 0)).isoformat(),
+    }
+    r = requests.post(f"{API_URL}/appointments", json=appt)
+    assert r.status_code == 200
+    r = requests.get(f"{API_URL}/appointments/export/ical")
+    assert r.status_code == 200
+    assert "BEGIN:VCALENDAR" in r.text
+
+
+@pytest.mark.env(RATE_LIMIT="2")
+def test_rate_limit(monkeypatch):
+    r1 = requests.get(f"{API_URL}/appointments")
+    r2 = requests.get(f"{API_URL}/appointments")
+    r3 = requests.get(f"{API_URL}/appointments")
+    assert r1.status_code == 200
+    assert r2.status_code == 200
+    assert r3.status_code == 429

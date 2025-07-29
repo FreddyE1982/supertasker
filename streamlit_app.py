@@ -11,11 +11,37 @@ from streamlit_calendar import calendar as st_calendar
 API_URL = "http://localhost:8000"
 
 st.title("Calendar App")
+st.markdown(
+    """
+    <script>
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey && e.key === 'n') {
+            const el = document.querySelector('input[data-testid="task-title"]');
+            if (el) { el.focus(); }
+        }
+    });
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('input').forEach(el => {
+            if (!el.getAttribute('aria-label') && el.id) {
+                el.setAttribute('aria-label', el.id);
+            }
+        });
+    });
+    </script>
+    <style>
+    @media (max-width: 600px) {
+        .main .block-container { padding: 1rem; }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 if "dark-mode" not in st.session_state:
     st.session_state["dark-mode"] = False
 
 st.checkbox("Dark Mode", key="dark-mode")
+
 
 def apply_theme() -> None:
     """Apply light or dark theme based on session state."""
@@ -37,6 +63,7 @@ def apply_theme() -> None:
         unsafe_allow_html=True,
     )
 
+
 apply_theme()
 
 if "appointments" not in st.session_state:
@@ -53,6 +80,8 @@ if "calendar_date" not in st.session_state:
 
 if "stats" not in st.session_state:
     st.session_state["stats"] = {}
+
+
 def refresh():
     resp = requests.get(f"{API_URL}/appointments")
     if resp.status_code == 200:

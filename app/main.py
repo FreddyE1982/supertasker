@@ -3,13 +3,14 @@ import math
 import os
 from datetime import date, datetime, time, timedelta
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from . import models, schemas
-from .metrics import MetricsService
-from .database import Base, SessionLocal, engine
 from .config import ConfigLoader, setup_logging
+from .database import Base, SessionLocal, engine
+from .metrics import MetricsService
 
 settings = ConfigLoader().load()
 setup_logging(settings.log_level)
@@ -19,12 +20,26 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 
+@app.middleware("http")
+async def limit_middleware(request: Request, call_next):
+    with SessionLocal() as db:
+        limiter = RateLimiter(db)
+        res = limiter(request)
+        if isinstance(res, Response):
+            return res
+    return await call_next(request)
+
+
 def get_db():
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+def rate_limit(request: Request, db: Session = Depends(get_db)):
+    RateLimiter(db)(request)
 
 
 class FocusSessionService:
@@ -87,6 +102,34 @@ class FocusSessionService:
         if not session:
             raise HTTPException(status_code=404, detail="Focus session not found")
         self.db.delete(session)
+        self.db.commit()
+
+
+class RateLimiter:
+    """Simple rate limiter using database storage."""
+
+    def __init__(self, db: Session):
+        self.db = db
+        self.limit = int(os.getenv("RATE_LIMIT", "100"))
+        self.window = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
+
+    def __call__(self, request: Request):
+        ip = request.client.host
+        now = datetime.utcnow()
+        rl = self.db.query(models.RateLimit).filter(models.RateLimit.ip == ip).first()
+        if not rl:
+            rl = models.RateLimit(ip=ip, window_start=now, count=1)
+            self.db.add(rl)
+            self.db.commit()
+            return
+        if (now - rl.window_start).total_seconds() > self.window:
+            rl.window_start = now
+            rl.count = 1
+            self.db.commit()
+            return
+        if rl.count >= self.limit:
+            return Response(status_code=429)
+        rl.count += 1
         self.db.commit()
 
 
@@ -1492,6 +1535,20 @@ def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_
     return db_cat
 
 
+@app.post("/tags", response_model=schemas.Tag)
+def create_tag(tag: schemas.TagCreate, db: Session = Depends(get_db)):
+    db_tag = models.Tag(**tag.dict())
+    db.add(db_tag)
+    db.commit()
+    db.refresh(db_tag)
+    return db_tag
+
+
+@app.get("/tags", response_model=list[schemas.Tag])
+def list_tags(db: Session = Depends(get_db)):
+    return db.query(models.Tag).all()
+
+
 @app.get("/categories", response_model=list[schemas.Category])
 def list_categories(db: Session = Depends(get_db)):
     cats = db.query(models.Category).all()
@@ -1537,7 +1594,13 @@ def create_appointment(
         )
         if cat is None:
             raise HTTPException(status_code=404, detail="Category not found")
-    db_app = models.Appointment(**appointment.dict())
+    data = appointment.dict()
+    tags = data.pop("tags", [])
+    db_app = models.Appointment(**data)
+    for tag_id in tags:
+        tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+        if tag:
+            db_app.tags.append(tag)
     db.add(db_app)
     db.commit()
     db.refresh(db_app)
@@ -1547,6 +1610,21 @@ def create_appointment(
 @app.get("/appointments", response_model=list[schemas.Appointment])
 def list_appointments(db: Session = Depends(get_db)):
     return db.query(models.Appointment).all()
+
+
+@app.get("/appointments/export/ical")
+def export_ical(db: Session = Depends(get_db)):
+    from icalendar import Calendar, Event
+
+    cal = Calendar()
+    for appt in db.query(models.Appointment).all():
+        event = Event()
+        event.add("summary", appt.title)
+        event.add("dtstart", appt.start_time)
+        event.add("dtend", appt.end_time)
+        event.add("description", appt.description or "")
+        cal.add_component(event)
+    return Response(cal.to_ical(), media_type="text/calendar")
 
 
 @app.put("/appointments/{appointment_id}", response_model=schemas.Appointment)
@@ -1570,8 +1648,16 @@ def update_appointment(
         )
         if cat is None:
             raise HTTPException(status_code=404, detail="Category not found")
-    for field, value in appointment.dict().items():
+    data = appointment.dict()
+    tags = data.pop("tags", [])
+    for field, value in data.items():
         setattr(db_app, field, value)
+    if tags:
+        db_app.tags = []
+        for tag_id in tags:
+            tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+            if tag:
+                db_app.tags.append(tag)
     db.commit()
     db.refresh(db_app)
     return db_app
@@ -1601,7 +1687,13 @@ def create_task(task: schemas.TaskCreate, db: Session = Depends(get_db)):
         )
         if cat is None:
             raise HTTPException(status_code=404, detail="Category not found")
-    db_task = models.Task(**task.dict())
+    data = task.dict()
+    tags = data.pop("tags", [])
+    db_task = models.Task(**data)
+    for tag_id in tags:
+        tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+        if tag:
+            db_task.tags.append(tag)
     db.add(db_task)
     db.commit()
     db.refresh(db_task)
@@ -1627,6 +1719,46 @@ def list_tasks(db: Session = Depends(get_db)):
     return db.query(models.Task).all()
 
 
+@app.get("/tasks/search", response_model=list[schemas.Task])
+def search_tasks(query: str, db: Session = Depends(get_db)):
+    return (
+        db.query(models.Task)
+        .filter(
+            (models.Task.title.ilike(f"%{query}%"))
+            | (models.Task.description.ilike(f"%{query}%"))
+        )
+        .all()
+    )
+
+
+class BulkUpdateItem(BaseModel):
+    id: int
+    data: schemas.TaskUpdate
+
+
+@app.post("/tasks/bulk_update", response_model=list[schemas.Task])
+def bulk_update_tasks(items: list[BulkUpdateItem], db: Session = Depends(get_db)):
+    updated = []
+    for item in items:
+        task = db.query(models.Task).filter(models.Task.id == item.id).first()
+        if task:
+            payload = item.data.dict()
+            tags = payload.pop("tags", [])
+            for field, value in payload.items():
+                setattr(task, field, value)
+            if tags:
+                task.tags = []
+                for tag_id in tags:
+                    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+                    if tag:
+                        task.tags.append(tag)
+            updated.append(task)
+    db.commit()
+    for t in updated:
+        db.refresh(t)
+    return updated
+
+
 @app.put("/tasks/{task_id}", response_model=schemas.Task)
 def update_task(task_id: int, task: schemas.TaskUpdate, db: Session = Depends(get_db)):
     db_task = db.query(models.Task).filter(models.Task.id == task_id).first()
@@ -1640,8 +1772,16 @@ def update_task(task_id: int, task: schemas.TaskUpdate, db: Session = Depends(ge
         )
         if cat is None:
             raise HTTPException(status_code=404, detail="Category not found")
-    for field, value in task.dict().items():
+    data = task.dict()
+    tags = data.pop("tags", [])
+    for field, value in data.items():
         setattr(db_task, field, value)
+    if tags:
+        db_task.tags = []
+        for tag_id in tags:
+            tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+            if tag:
+                db_task.tags.append(tag)
     db.commit()
     db.refresh(db_task)
     return db_task
@@ -1743,6 +1883,74 @@ def delete_focus_session(task_id: int, session_id: int, db: Session = Depends(ge
     service = FocusSessionService(db)
     service.delete(task_id, session_id)
     return {"detail": "Deleted"}
+
+
+@app.post("/tasks/{task_id}/tags/{tag_id}", response_model=schemas.Task)
+def add_task_tag(task_id: int, tag_id: int, db: Session = Depends(get_db)):
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+    if not task or not tag:
+        raise HTTPException(status_code=404, detail="Not found")
+    if tag not in task.tags:
+        task.tags.append(tag)
+        db.commit()
+        db.refresh(task)
+    return task
+
+
+@app.delete("/tasks/{task_id}/tags/{tag_id}", response_model=schemas.Task)
+def remove_task_tag(task_id: int, tag_id: int, db: Session = Depends(get_db)):
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+    if not task or not tag:
+        raise HTTPException(status_code=404, detail="Not found")
+    if tag in task.tags:
+        task.tags.remove(tag)
+        db.commit()
+        db.refresh(task)
+    return task
+
+
+@app.get("/tasks/{task_id}/tags", response_model=list[schemas.Tag])
+def list_task_tags(task_id: int, db: Session = Depends(get_db)):
+    task = db.query(models.Task).filter(models.Task.id == task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return task.tags
+
+
+@app.post("/appointments/{appt_id}/tags/{tag_id}", response_model=schemas.Appointment)
+def add_appointment_tag(appt_id: int, tag_id: int, db: Session = Depends(get_db)):
+    appt = db.query(models.Appointment).filter(models.Appointment.id == appt_id).first()
+    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+    if not appt or not tag:
+        raise HTTPException(status_code=404, detail="Not found")
+    if tag not in appt.tags:
+        appt.tags.append(tag)
+        db.commit()
+        db.refresh(appt)
+    return appt
+
+
+@app.delete("/appointments/{appt_id}/tags/{tag_id}", response_model=schemas.Appointment)
+def remove_appointment_tag(appt_id: int, tag_id: int, db: Session = Depends(get_db)):
+    appt = db.query(models.Appointment).filter(models.Appointment.id == appt_id).first()
+    tag = db.query(models.Tag).filter(models.Tag.id == tag_id).first()
+    if not appt or not tag:
+        raise HTTPException(status_code=404, detail="Not found")
+    if tag in appt.tags:
+        appt.tags.remove(tag)
+        db.commit()
+        db.refresh(appt)
+    return appt
+
+
+@app.get("/appointments/{appt_id}/tags", response_model=list[schemas.Tag])
+def list_appointment_tags(appt_id: int, db: Session = Depends(get_db)):
+    appt = db.query(models.Appointment).filter(models.Appointment.id == appt_id).first()
+    if not appt:
+        raise HTTPException(status_code=404, detail="Appointment not found")
+    return appt.tags
 
 
 @app.get("/admin/stats")

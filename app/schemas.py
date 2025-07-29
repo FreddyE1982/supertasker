@@ -28,6 +28,7 @@ class AppointmentBase(BaseModel):
     start_time: datetime
     end_time: datetime
     category_id: int | None = None
+    timezone: str | None = "UTC"
 
 
 class AppointmentCreate(AppointmentBase):
@@ -40,6 +41,7 @@ class AppointmentUpdate(AppointmentBase):
 
 class Appointment(AppointmentBase):
     id: int
+    tags: list["Tag"] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -59,6 +61,8 @@ class TaskBase(BaseModel):
     priority: int = 3
     worked_on: bool = False
     paused: bool = False
+    completion_percentage: int = 0
+    tags: list[int] = []
 
 
 class TaskCreate(TaskBase):
@@ -96,6 +100,8 @@ class TaskUpdate(TaskBase):
 
 class Task(TaskBase):
     id: int
+    completion_percentage: int = 0
+    tags: list["Tag"] = []
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -139,5 +145,19 @@ class FocusSessionUpdate(BaseModel):
 class FocusSession(FocusSessionBase):
     id: int
     task_id: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TagBase(BaseModel):
+    name: str
+
+
+class TagCreate(TagBase):
+    pass
+
+
+class Tag(TagBase):
+    id: int
 
     model_config = ConfigDict(from_attributes=True)
