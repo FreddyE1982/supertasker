@@ -102,4 +102,3 @@ The following steps aim to enhance the calendar and task planning application. E
 98. [x] Provide contribution guidelines
 99. [ ] Run user surveys to gather feedback
 100. [ ] Plan marketing strategy for launch
-47. [x] Add logging configuration options
